@@ -36,7 +36,19 @@ for (const view of views) {
     problems.push('no frame stats after 30 s');
   }
   await new Promise((r) => setTimeout(r, 2500));
+  // SAMPLE=n records n one-second windows (e.g. with ?autopilot) and reports the worst hitch.
+  const samples = [];
+  for (let i = 0; i < Number(process.env.SAMPLE ?? 0); i++) {
+    await new Promise((r) => setTimeout(r, 1000));
+    samples.push(await page.evaluate(() => ({ ...window.__stats })));
+  }
+  if (samples.length) {
+    const fps = samples.map((s) => s.fps);
+    console.log(`   sampled ${samples.length}s: fps min ${Math.min(...fps)} avg ${Math.round(fps.reduce((a, b) => a + b) / fps.length)}, worst frame ${Math.max(...samples.map((s) => s.worstMs))} ms, draws max ${Math.max(...samples.map((s) => s.drawCalls))}`);
+  }
   const stats = await page.evaluate(() => window.__stats ?? null);
+  const city = await page.evaluate(() => window.__city?.worst ?? null);
+  if (city) console.log('   city worst ms:', JSON.stringify(city, (k, v) => (typeof v === 'number' ? +v.toFixed(1) : v)));
   const loading = await page.evaluate(() => document.getElementById('loading')?.textContent ?? null);
   await page.screenshot({ path: `${outDir}/${view.replace(/[^a-z0-9.]+/gi, "_")}.jpg`, type: 'jpeg', quality: 80 });
 

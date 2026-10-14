@@ -1,0 +1,196 @@
+{
+  "id": "ur-1750bce",
+  "note": "Macro plan of Ur around 1750 BCE. Origin is the city centre, +x east, -z north. The oval wall, the temenos a little north-west of centre with the ziggurat in its western corner, the two harbours, the Euphrates on the west and the canal on the north-east follow Woolley's plan and the later Italian survey. Exact positions and sizes are approximate.",
+  "evidence": "inferred",
+  "wall": {
+    "radiusX": 400,
+    "radiusZ": 600,
+    "height": 9,
+    "baseWidth": 18,
+    "topWidth": 7,
+    "gates": [
+      -95,
+      0,
+      85,
+      180
+    ]
+  },
+  "temenos": {
+    "rect": [
+      -270,
+      -340,
+      -20,
+      -130
+    ],
+    "wallHeight": 8,
+    "wallThickness": 4,
+    "gate": {
+      "side": "east",
+      "at": 0.55
+    }
+  },
+  "ziggurat": {
+    "evidence": "inferred",
+    "position": [
+      -205,
+      -278
+    ],
+    "rotation": 45,
+    "terraces": [
+      {
+        "width": 62.5,
+        "depth": 43,
+        "height": 11,
+        "batter": 2.4
+      },
+      {
+        "width": 38,
+        "depth": 26,
+        "height": 5.5,
+        "batter": 1.2
+      },
+      {
+        "width": 20,
+        "depth": 14,
+        "height": 4.5,
+        "batter": 0.5
+      }
+    ]
+  },
+  "water": {
+    "river": {
+      "x": -545,
+      "width": 170
+    },
+    "harbours": [
+      {
+        "name": "West Harbour",
+        "rect": [
+          -395,
+          20,
+          -310,
+          110
+        ]
+      },
+      {
+        "name": "North Harbour",
+        "rect": [
+          -70,
+          -610,
+          30,
+          -520
+        ]
+      }
+    ],
+    "canal": {
+      "offset": 55,
+      "width": 26,
+      "fromDeg": -110,
+      "toDeg": 55
+    },
+    "channels": [
+      {
+        "name": "West Harbour channel",
+        "rect": [
+          -470,
+          52,
+          -390,
+          80
+        ]
+      },
+      {
+        "name": "North Harbour channel",
+        "rect": [
+          -26,
+          -674,
+          6,
+          -600
+        ]
+      }
+    ]
+  },
+  "streets": {
+    "spacing": 34,
+    "jitter": 5,
+    "laneWidth": 3,
+    "avenueEvery": 4,
+    "avenueWidth": 6,
+    "edgeMargin": 26
+  },
+  "spawn": {
+    "near": [
+      70,
+      -60
+    ],
+    "lookAt": [
+      -205,
+      -278
+    ]
+  },
+  "palmGroves": [
+    {
+      "center": [
+        -470,
+        -300
+      ],
+      "radius": 60,
+      "count": 40
+    },
+    {
+      "center": [
+        -470,
+        250
+      ],
+      "radius": 70,
+      "count": 45
+    },
+    {
+      "center": [
+        -460,
+        600
+      ],
+      "radius": 60,
+      "count": 30
+    },
+    {
+      "center": [
+        330,
+        -560
+      ],
+      "radius": 70,
+      "count": 35
+    },
+    {
+      "center": [
+        500,
+        -150
+      ],
+      "radius": 70,
+      "count": 40
+    },
+    {
+      "center": [
+        500,
+        300
+      ],
+      "radius": 80,
+      "count": 45
+    },
+    {
+      "center": [
+        150,
+        700
+      ],
+      "radius": 80,
+      "count": 40
+    },
+    {
+      "center": [
+        -150,
+        -760
+      ],
+      "radius": 80,
+      "count": 40
+    }
+  ]
+}

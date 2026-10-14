@@ -1,6 +1,8 @@
 import * as THREE from 'three/webgpu';
 import { SkyMesh } from 'three/addons/objects/SkyMesh.js';
 
+const SHADOW_EXTENT = 38;
+
 export interface SkyRig {
   sun: THREE.DirectionalLight;
   sunDirection: THREE.Vector3;
@@ -63,12 +65,13 @@ export function createSky(
   const sun = new THREE.DirectionalLight(0xfff1dc, 3.2);
   sun.position.copy(sunDirection).multiplyScalar(120);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(4096, 4096);
+  // A tight shadow box that follows the player (see followSun); far shadows fade into the haze anyway.
+  sun.shadow.mapSize.set(2048, 2048);
   const s = sun.shadow.camera;
-  s.left = -45;
-  s.right = 45;
-  s.top = 45;
-  s.bottom = -45;
+  s.left = -SHADOW_EXTENT;
+  s.right = SHADOW_EXTENT;
+  s.top = SHADOW_EXTENT;
+  s.bottom = -SHADOW_EXTENT;
   s.near = 1;
   s.far = 300;
   sun.shadow.bias = -0.0004;
@@ -77,4 +80,13 @@ export function createSky(
   scene.add(sun, sun.target);
 
   return { sun, sunDirection };
+}
+
+/** Keep the shadow box centred on the player, snapped to whole shadow-map texels to avoid shimmer. */
+export function followSun(rig: SkyRig, x: number, z: number) {
+  const texel = (2 * SHADOW_EXTENT) / rig.sun.shadow.mapSize.x;
+  const sx = Math.round(x / texel) * texel;
+  const sz = Math.round(z / texel) * texel;
+  rig.sun.target.position.set(sx, 0, sz);
+  rig.sun.position.set(sx, 0, sz).addScaledVector(rig.sunDirection, 150);
 }

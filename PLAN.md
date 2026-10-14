@@ -2,11 +2,12 @@
 
 ## The idea in one paragraph
 
-A small, dense, good-looking slice of one real city that you can walk through
-in the browser, where everything you touch teaches you something. Breadth comes
-later. The first goal is ten minutes in one neighbourhood of Ur that look real
-and feel alive, because a beautiful street with five great interactions teaches
-more than an empty empire.
+The whole city of Ur at its real size, walkable in the browser, where
+everything you touch teaches you something. The explorable world is exactly
+the city inside its wall, about 1.2 km by 0.8 km; past the wall the river,
+canal and palm groves are scenery you can see but not reach. Depth beats
+breadth: a few streets with great interactions teach more than an empty empire,
+so the city fills in with detail one district at a time.
 
 ## Setting
 
@@ -28,7 +29,7 @@ Second chapter later: Babylon around 575 BCE (Ishtar Gate, Processional Way).
 ## Requirements
 
 Functional
-- Third-person walking around a city, with solid collisions
+- First-person walking around the whole city, with solid collisions (third person once there is a character model)
 - Talk to people (branching dialogue), inspect objects, pick some up
 - Mini-games tied to real practices
 - A codex ("tablet collection") that fills as you learn, each entry citing its source
@@ -200,13 +201,58 @@ Rules
             |   Game state store (Zustand)  <--> localStorage  |
             |          |                                       |
             |          v                                       |
-            |   World streamer --> loads/unloads district GLBs |
+            |   City streamer --> builds blocks near the player |
             |   Renderer (WebGPU, TSL post FX, day/night)      |
             +--------------------------------------------------+
                          ^
                          | static files
                GitHub Pages (code + assets)
 ```
+
+## The open city
+
+**Layout.** Two layers. A hand-authored macro plan (`content/city/ur.json`)
+places what the excavations tell us: the oval wall, the temenos a little
+north-west of centre with the ziggurat in its western corner, the West and
+North harbours, the Euphrates to the west and the canal around the north-east.
+A deterministic generator fills everything else: jittered street lines with a
+wider avenue every few streets, blocks between them, one or two rows of plots
+per block so every house touches a street, and a courtyard house on each plot
+(rooms around a central court, street door into the room that opens onto the
+court, the plan Woolley found again and again). Same seeds, same city, every
+visit. Excavated houses traced from Woolley's plans will replace generated
+ones plot by plot.
+
+**Streaming.**
+
+```
+ every frame, at the player's position
+   |
+   +-- blocks within 75 m ----> build house by house (3 ms/frame budget)
+   |                              -> compileAsync (GPU pipelines off the critical path)
+   |                              -> attach: meshes + Rapier colliders + pooled pottery
+   |                              -> hide that block's massing (one uniform flag)
+   |
+   +-- blocks beyond 95 m ----> detach, free colliders and pottery slots, show massing
+   |
+   +-- the whole city ---------> low-detail massing, merged per 4x4-block sector,
+                                 built once at load; per-block visibility in the shader
+```
+
+Palms switch between a cheap far version and a detailed near version per grove.
+The shadow map follows the player. Resolution scales down when frame rate drops.
+
+**Why this shape (ADR-002).** Per-block meshes would mean thousands of draw
+calls for the far city; three.js's BatchedMesh issues one draw per instance on
+WebGPU, which measured worse (2,000+ draws). Rebuilding merged sectors whenever
+a block loaded, and creating new pottery meshes per block, both caused visible
+hitches while walking (45 to 135 ms frames). Merging once, hiding with a
+shader flag, and pooling instanced props removed them: walking now measures the
+same worst frame as standing still.
+
+**Measured** (headless Chrome, M-series Mac, 960x540, a smoke test): 60 fps
+while walking through the city, worst frame 22 ms, about 85 to 350 draw calls
+and 0.2M to 1.1M triangles per frame depending on the view, 2,567 houses.
 
 ## Content model
 
@@ -242,8 +288,8 @@ Dialogue lives in `content/dialogue/*.ink`, quests in `content/quests/*.json`.
 | Market street | Traders | Barter in barley and silver using base 60 | Weights, money before coins, sexagesimal maths |
 | Temple precinct | Priest, temple workers | Bring offerings, climb toward the ziggurat | Religion, Nanna the moon god, temple economy |
 | A courtyard game | Neighbours | **Play the Royal Game of Ur** | Leisure, the oldest playable board game rules |
-| Fields outside the walls | Farmers | Open canal gates to water fields before the flood season | Irrigation, why cities existed here at all |
-| Harbour | Boatmen | Load a reed boat for Dilmun | Trade routes, the Gulf, what Ur imported |
+| On the city wall | A field overseer | Plan which canal gates to open for the fields you can see beyond the wall | Irrigation, why cities existed here at all |
+| Harbour quay | Boatmen | Load a reed boat for Dilmun | Trade routes, the Gulf, what Ur imported |
 | City gate | Scribe of the court | Settle a dispute using a law of Hammurabi | Law, justice, social classes |
 
 ## Roadmap
@@ -265,7 +311,8 @@ Each phase ends with something deployed and playable.
 - [ ] Headless Blender script that takes one AI-generated prop and outputs a web-ready GLB with LODs (pots turned out not to need it)
 - [x] FPS overlay; `scripts/shoot.mjs` for headless checks
 - [x] Record fps on a real laptop: 60 fps in Chrome (before palms and props)
-- [ ] Re-check the laptop with palms and props, then a phone
+- [x] Re-check the laptop with palms and props: 40 to 45 fps, which led to the streaming and LOD work below
+- [ ] Re-check the laptop with the open city, then a phone
 - [x] Deploy to GitHub Pages with GitHub Actions
 
 Measured so far:
@@ -278,11 +325,19 @@ Measured so far:
 
 Exit: a screenshot people mistake for a render, at measured fps.
 
-### Phase 1: vertical slice (2 to 3 weeks)
-- [ ] Trace one block of Woolley's residential quarter plan into JSON
-- [ ] City generator v1: stairs, drains, rounded corners and jambs; colliders into Rapier
-- [ ] One street and one enterable courtyard house
-- [ ] Third-person controller with Rapier
+### Phase 1: the open city, then a vertical slice (3 to 4 weeks)
+- [x] Macro plan of Ur at real size: wall, gates, temenos, ziggurat, harbours, river, canal
+- [x] Generated streets, blocks and courtyard houses for the whole city
+- [x] Streaming with time-sliced building, async pipeline compile, sector massing, pooled props
+- [x] First-person walking with Rapier: collisions, steps, the ziggurat stair is climbable
+- [x] Adaptive resolution and a shadow map that follows the player
+- [x] Per-house plaster tones
+- [ ] Street life on the walls: more doors, benches, drains, rubbish, steps up to raised doorways
+- [ ] Less grid-like streets: bends and dead-end alleys
+- [ ] Temples and shrines in the temenos, the gipar, a market street
+- [ ] Trace one block of Woolley's residential quarter plan into JSON and swap it in
+- [ ] City generator v1: stairs, drains, rounded corners and jambs
+- [ ] Touch controls for phones and tablets
 - [ ] Interaction prompts, inspect view, codex with 10 entries
 - [ ] Two characters with Ink dialogue (a homeowner, Ea-nasir)
 - [ ] Royal Game of Ur, fully playable against a simple AI
@@ -293,15 +348,15 @@ Exit: a first-time player finishes a 10-minute loop without help.
 ### Phase 2: the neighbourhood (3 to 4 weeks)
 - [ ] Market street, scribal school, temple precinct edge
 - [ ] Cuneiform writing and base-60 trading mini-games
-- [ ] District streaming and LODs
 - [ ] Day/night cycle, ambient crowds (instanced, simple loops), soundscape
 - [ ] Main quest line linking the places
 - [ ] Mobile touch controls
 
 ### Phase 3: the wider city (3 to 4 weeks)
-- [ ] Ziggurat (visible from everywhere), harbour, fields and canals
+- [ ] Harbour life: boats, quays, goods
+- [ ] Walk the city wall
 - [ ] Irrigation and law mini-games
-- [ ] Intro cinematic and cutscenes
+- [ ] Intro cinematic and cutscenes (see Cinematics)
 - [ ] Accessibility: subtitles, remappable keys, reduced-motion mode
 
 ### Phase 4: ask the city (optional, 2 weeks)
@@ -327,11 +382,28 @@ Later: Babylon chapter, WebXR mode, classroom multiplayer.
 | AI-generated assets look generic or wrong for the period | Reference first, generate second; architecture generated from excavation plans |
 | Generated buildings look procedural and repetitive | Per-house variation in plaster, wear, clutter and lighting; hand-placed props on top |
 | Scope grows into "all of Mesopotamia" | One city, one decade, until Phase 5 ships |
+| Generated streets feel like a grid | Bends, alleys and dead ends in the generator; traced real blocks near the spawn |
 | Historical errors | Every fact cited; evidence labels in-game; invite corrections via issues |
 | WebGPU edge cases | Automatic WebGL 2 fallback (verified); real-browser spike in Phase 0 |
 
+## Cinematics
+
+The player never flies a free camera, so everything seen from the air is a
+video made with Higgsfield and played in the game. To keep the videos matching
+the game, each one starts from an in-game frame (image to video), not from a
+text prompt alone.
+
+| Shot | Length | Start frame | Prompt notes |
+|---|---|---|---|
+| Intro: drone over the Euphrates and palm groves, across the city wall, toward the ziggurat, ending at street level | 10 to 15 s | `?view=aerial` screenshot | Morning haze, low warm sun, flat-roofed mudbrick houses with courtyards, narrow lanes, a stepped brick ziggurat with one long stair. Slow forward drone move. |
+| Festival procession up to the ziggurat | 8 to 10 s | `?view=ziggurat` screenshot | Crowd in plain wool and linen, priests, offerings carried on heads |
+| Boats unloading copper from Dilmun at the harbour | 8 to 10 s | harbour screenshot | Reed boats, ingots, scribes recording on clay tablets |
+
+Every prompt also lists what must not appear: no pyramids, no stone columns,
+no domes, no glass, no Egyptian or Greek styling, no horses or camels.
+
+Videos go in `public/video/` as MP4 (H.264), under about 15 MB each.
+
 ## Open questions
-- Third person or first person? Third person shows off the clothing and makes
-  the world feel inhabited; first person is cheaper to build.
 - Language for characters: English with occasional Akkadian words and greetings?
 - Should the Game of Ur be playable online against friends?

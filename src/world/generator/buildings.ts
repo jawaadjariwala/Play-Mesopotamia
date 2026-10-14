@@ -52,6 +52,8 @@ export interface BuildingSpec {
   walls: WallSpec[];
   roofs?: RoofSpec[];
   floors?: FloorSpec[];
+  /** Brightness of this building's plaster and brick (1 = as scanned). */
+  shade?: number;
 }
 
 /** Oriented box for the physics world (Phase 1). */
@@ -59,6 +61,8 @@ export interface ColliderBox {
   center: THREE.Vector3;
   halfExtents: THREE.Vector3;
   rotationY: number;
+  /** Full rotation, when a box is tilted (ramps); overrides rotationY. */
+  rotation?: { x: number; y: number; z: number; w: number };
 }
 
 export interface BuiltObject {
@@ -73,7 +77,7 @@ const LEAF_THICKNESS = 0.06;
 
 /** Eroded wall tops: built from short segments whose corners rise and fall with a smooth noise. */
 const CAP_DEPTH = 0.16;
-const CAP_STEP = 0.3;
+const CAP_STEP = 0.45;
 const CAP_EDGE = 0.1;
 
 function erosion(x: number, z: number, seed: number): number {
@@ -115,23 +119,88 @@ function erodedCap(
     return new THREE.Vector3(p.x, h, p.y);
   };
   const n = Math.max(1, Math.round((a1 - a0) / CAP_STEP));
+  const ks = Array.from({ length: n + 1 }, (_, k) => a0 + ((a1 - a0) * k) / n);
   for (let k = 0; k < n; k++) {
-    const k0 = a0 + ((a1 - a0) * k) / n;
-    const k1 = a0 + ((a1 - a0) * (k + 1)) / n;
+    const [k0, k1] = [ks[k], ks[k + 1]];
+    // Top surface in three strips: slumped edge, raised middle, slumped edge.
     for (let j = 0; j < 3; j++) {
       const lo = offsets[j];
       const hi = offsets[j + 1];
-      const quad = (top: boolean) => [corner(k0, hi, top), corner(k1, hi, top), corner(k1, lo, top), corner(k0, lo, top)];
-      b.prism(quad(false), quad(true));
+      b.quad(corner(k0, hi, true), corner(k1, hi, true), corner(k1, lo, true), corner(k0, lo, true));
+    }
+    // The two long faces, from the wall top down to the cap's base.
+    b.quad(corner(k0, ht, false), corner(k1, ht, false), corner(k1, ht, true), corner(k0, ht, true));
+    b.quad(corner(k1, -ht, false), corner(k0, -ht, false), corner(k0, -ht, true), corner(k1, -ht, true));
+  }
+  // Close both ends of the run.
+  for (const [a, dir] of [
+    [a0, -1],
+    [a1, 1],
+  ] as const) {
+    const pts = offsets.map((s) => [corner(a, s, false), corner(a, s, true)] as const);
+    for (let j = 0; j < 3; j++) {
+      const [lb, lt] = pts[j];
+      const [hb, htop] = pts[j + 1];
+      // Same winding as prism(): low-to-high across at the start, high-to-low at the end.
+      if (dir < 0) b.quad(lb, hb, htop, lt);
+      else b.quad(hb, lb, lt, htop);
     }
   }
 }
 
+/** One set of builders per material; many buildings can be added before building meshes. */
+export interface BuildingBuilders {
+  plaster: MeshBuilder;
+  brick: MeshBuilder;
+  roof: MeshBuilder;
+  timber: MeshBuilder;
+}
+
+export function createBuilders(): BuildingBuilders {
+  return { plaster: new MeshBuilder(2.4), brick: new MeshBuilder(1.6), roof: new MeshBuilder(3.0), timber: new MeshBuilder(1.0) };
+}
+
+/** Meshes for whatever has been added to the builders, in world coordinates. */
+export function meshesFrom(b: BuildingBuilders, mats: Materials, shadows = true): THREE.Mesh[] {
+  const out: THREE.Mesh[] = [];
+  for (const [builder, mat] of [
+    [b.plaster, mats.plaster],
+    [b.brick, mats.bakedBrick],
+    [b.roof, mats.mudRoof],
+    [b.timber, mats.timber],
+  ] as const) {
+    if (builder.empty) continue;
+    const mesh = new THREE.Mesh(builder.build(), mat);
+    mesh.castShadow = shadows;
+    mesh.receiveShadow = true;
+    out.push(mesh);
+  }
+  return out;
+}
+
 export function buildBuilding(spec: BuildingSpec, mats: Materials): BuiltObject {
-  const plaster = new MeshBuilder(2.4);
-  const brick = new MeshBuilder(1.6);
-  const roof = new MeshBuilder(3.0);
-  const timber = new MeshBuilder(1.0);
+  const b = createBuilders();
+  const colliders = addBuilding(spec, b);
+  const group = new THREE.Group();
+  group.name = spec.id;
+  group.userData = { evidence: spec.evidence, note: spec.note };
+  group.add(...meshesFrom(b, mats));
+  return { group, colliders };
+}
+
+/** Adds one building's geometry to shared builders (in world space) and returns its wall colliders. */
+export function addBuilding(spec: BuildingSpec, builders: BuildingBuilders): ColliderBox[] {
+  const { plaster, brick, roof, timber } = builders;
+  const rotation = THREE.MathUtils.degToRad(spec.rotation ?? 0);
+  const world = new THREE.Matrix4().compose(
+    new THREE.Vector3(spec.position[0], 0, spec.position[1]),
+    new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), rotation),
+    new THREE.Vector3(1, 1, 1),
+  );
+  for (const m of [plaster, brick, roof, timber]) {
+    m.transform = world;
+    m.shade = spec.shade ?? 1;
+  }
   const colliders: ColliderBox[] = [];
 
   const ht = spec.thickness / 2;
@@ -212,11 +281,6 @@ export function buildBuilding(spec: BuildingSpec, mats: Materials): BuiltObject 
       rectCorners(x0, z0, x1, z1, spec.roofHeight),
       false,
     );
-    colliders.push({
-      center: new THREE.Vector3((x0 + x1) / 2, spec.roofHeight - ROOF_THICKNESS / 2, (z0 + z1) / 2),
-      halfExtents: new THREE.Vector3((x1 - x0) / 2, ROOF_THICKNESS / 2, (z1 - z0) / 2),
-      rotationY: 0,
-    });
   }
 
   for (const f of spec.floors ?? []) {
@@ -224,24 +288,15 @@ export function buildBuilding(spec: BuildingSpec, mats: Materials): BuiltObject 
     brick.prism(rectCorners(x0, z0, x1, z1, 0), rectCorners(x0, z0, x1, z1, PAVING_HEIGHT));
   }
 
-  const group = new THREE.Group();
-  group.name = spec.id;
-  group.userData = { evidence: spec.evidence, note: spec.note };
-  for (const [builder, mat] of [
-    [plaster, mats.plaster],
-    [brick, mats.bakedBrick],
-    [roof, mats.mudRoof],
-    [timber, mats.timber],
-  ] as const) {
-    if (builder.empty) continue;
-    const mesh = new THREE.Mesh(builder.build(), mat);
-    mesh.castShadow = mesh.receiveShadow = true;
-    group.add(mesh);
+  for (const m of [plaster, brick, roof, timber]) {
+    m.transform = null;
+    m.shade = 1;
   }
-
-  group.position.set(spec.position[0], 0, spec.position[1]);
-  group.rotation.y = THREE.MathUtils.degToRad(spec.rotation ?? 0);
-  return { group, colliders };
+  for (const c of colliders) {
+    c.center.applyMatrix4(world);
+    c.rotationY += rotation;
+  }
+  return colliders;
 }
 
 export interface ZigguratSpec {
@@ -256,6 +311,9 @@ export interface ZigguratSpec {
  * Stepped, battered terraces with the shallow buttresses that broke up each face.
  * The first terrace's dimensions are well established; upper terraces are reconstruction.
  */
+/** The central stairway, shared with the physics so players can climb to the first terrace. */
+export const ZIGGURAT_STAIR = { halfWidth: 3.5, run: 34 };
+
 export function buildZiggurat(spec: ZigguratSpec, mats: Materials): THREE.Group {
   const brick = new MeshBuilder(2.2);
   let y = 0;
@@ -284,9 +342,9 @@ export function buildZiggurat(spec: ZigguratSpec, mats: Materials): THREE.Group 
 
   // Central stairway up the front face to the first terrace, as a sloped wedge.
   const first = spec.terraces[0];
-  const sw = 3.5;
+  const sw = ZIGGURAT_STAIR.halfWidth;
   const front = first.depth / 2;
-  const run = 34;
+  const run = ZIGGURAT_STAIR.run;
   brick.prism(rectCorners(-sw, front - 1, sw, front + run, 0), [
     new THREE.Vector3(-sw, 0.25, front + run),
     new THREE.Vector3(sw, 0.25, front + run),

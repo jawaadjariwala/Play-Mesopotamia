@@ -42,6 +42,8 @@ interface SurfaceOptions {
   groundGrime: number;
   tint?: THREE.ColorRepresentation;
   normalStrength?: number;
+  /** Multiply by the per-vertex 'shade' attribute (only for MeshBuilder geometry). */
+  shaded?: boolean;
   /** 1 keeps the scanned colour, lower values push it toward grey. */
   saturation?: number;
   /** Patches where the surface layer has fallen away to show what's underneath. */
@@ -71,6 +73,7 @@ function surfaceFrom({ diff, nor, arm }: Awaited<ReturnType<typeof loadSet>>, op
   const dust = vec3(0.42, 0.33, 0.24);
 
   let base = texture(diff, uv()).rgb.mul(variation);
+  if (opts.shaded) base = base.mul(attribute('shade', 'float'));
   if (opts.saturation !== undefined) base = mix(vec3(luminance(base)), base, opts.saturation);
   if (opts.tint !== undefined) base = base.mul(color(new THREE.Color(opts.tint)));
   if (opts.reveal) {
@@ -116,11 +119,12 @@ export async function createMaterials(renderer: THREE.WebGPURenderer): Promise<M
     tint: 0xf0e2cc,
     reveal: { diff: brickSet.diff, scale: 2.4 / 1.6, threshold: 0.62, tint: 0xa08a70 },
     streaks: 1,
+    shaded: true,
   });
   // Ur's baked bricks are a pale buff, not the orange of modern fired brick.
-  const bakedBrick = surfaceFrom(brickSet, { variation: 0.15, groundGrime: 0.7, tint: 0xe6d6bc, saturation: 0.45 });
+  const bakedBrick = surfaceFrom(brickSet, { variation: 0.15, groundGrime: 0.7, tint: 0xe6d6bc, saturation: 0.45, shaded: true });
   const [mudRoof, ground, timber, bark] = await Promise.all([
-    surface('clay_block_wall', aniso, { variation: 0.2, groundGrime: 0 }),
+    surface('clay_block_wall', aniso, { variation: 0.2, groundGrime: 0, shaded: true }),
     surface('dirt_floor', aniso, { variation: 0.3, groundGrime: 0, normalStrength: 1.2 }),
     // Doors and lintels: palm and poplar planks, sun-bleached.
     surface('weathered_brown_planks', aniso, { variation: 0.15, groundGrime: 0.4, tint: 0xc4ad94, saturation: 0.75 }),

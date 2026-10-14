@@ -38,7 +38,7 @@ export interface PropSpec {
 
 function potGeometry(type: PotType): THREE.BufferGeometry {
   const points = PROFILES[type].map(([r, h]) => new THREE.Vector2(r, h));
-  const g = new THREE.LatheGeometry(points, 22);
+  const g = new THREE.LatheGeometry(points, 14);
   // Lathe UVs run 0..1 around and along; stretch them toward real-world size.
   const uvs = g.attributes.uv as THREE.BufferAttribute;
   for (let i = 0; i < uvs.count; i++) uvs.setXY(i, uvs.getX(i) * 1.4, uvs.getY(i) * 0.9);
@@ -65,4 +65,76 @@ export function buildPottery(props: PropSpec[], mats: Materials, seed = 3): THRE
     group.add(mesh);
   }
   return group;
+}
+
+/**
+ * One instanced mesh per pot type for the whole city. Streamed blocks borrow slots
+ * and give them back, so loading a block never creates new GPU objects (that caused
+ * visible hitches while walking).
+ */
+export class PotteryPool {
+  readonly group = new THREE.Group();
+  private meshes = new Map<PotType, THREE.InstancedMesh>();
+  private free = new Map<PotType, number[]>();
+  private used = new Map<PotType, Uint8Array>();
+  private static readonly HIDDEN = new THREE.Matrix4().makeScale(0, 0, 0);
+
+  constructor(mats: Materials, capacity = 600) {
+    this.group.name = 'pottery';
+    for (const type of Object.keys(PROFILES) as PotType[]) {
+      const mesh = new THREE.InstancedMesh(potGeometry(type), mats.pottery, capacity);
+      for (let i = 0; i < capacity; i++) mesh.setMatrixAt(i, PotteryPool.HIDDEN);
+      mesh.castShadow = mesh.receiveShadow = true;
+      mesh.frustumCulled = false; // contents move around the city as blocks stream
+      this.meshes.set(type, mesh);
+      this.free.set(type, Array.from({ length: capacity }, (_, i) => capacity - 1 - i));
+      this.used.set(type, new Uint8Array(capacity));
+      mesh.count = 0;
+      this.group.add(mesh);
+    }
+  }
+
+  /** Place pots; returns a handle for remove(). Pots beyond capacity are skipped. */
+  add(props: PropSpec[], seed: number): [PotType, number][] {
+    const rand = mulberry32(seed);
+    const used: [PotType, number][] = [];
+    for (const p of props) {
+      const slot = this.free.get(p.type)!.pop();
+      if (slot === undefined) continue;
+      const yaw = rand() * Math.PI * 2;
+      const tilt = THREE.MathUtils.degToRad(p.tilt ?? 0);
+      const rot = new THREE.Quaternion().setFromEuler(new THREE.Euler(tilt, yaw, 0, 'YXZ'));
+      const s = (p.scale ?? 1) * (0.9 + rand() * 0.2);
+      const mesh = this.meshes.get(p.type)!;
+      mesh.setMatrixAt(slot, new THREE.Matrix4().compose(new THREE.Vector3(p.position[0], p.y ?? 0, p.position[1]), rot, new THREE.Vector3(s, s, s)));
+      mesh.instanceMatrix.needsUpdate = true;
+      this.used.get(p.type)![slot] = 1;
+      used.push([p.type, slot]);
+    }
+    this.trim();
+    return used;
+  }
+
+  remove(handle: [PotType, number][]) {
+    for (const [type, slot] of handle) {
+      const mesh = this.meshes.get(type)!;
+      mesh.setMatrixAt(slot, PotteryPool.HIDDEN);
+      mesh.instanceMatrix.needsUpdate = true;
+      this.used.get(type)![slot] = 0;
+      this.free.get(type)!.push(slot);
+    }
+    // Reuse low slots first so the drawn range stays short.
+    for (const f of this.free.values()) f.sort((a, b) => b - a);
+    this.trim();
+  }
+
+  /** Only draw up to the highest slot in use. */
+  private trim() {
+    for (const [type, mesh] of this.meshes) {
+      const used = this.used.get(type)!;
+      let top = used.length;
+      while (top > 0 && !used[top - 1]) top--;
+      mesh.count = top;
+    }
+  }
 }

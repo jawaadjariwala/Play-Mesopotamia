@@ -13,11 +13,22 @@ export class MeshBuilder {
   private normals: number[] = [];
   private uvs: number[] = [];
   private indices: number[] = [];
+  private shades: number[] = [];
+
+  /** Per-vertex brightness multiplier, so each house can have its own plaster tone. */
+  shade = 1;
+
+  /** Applied to every point before it is stored, so callers can work in a building's local frame. */
+  transform: THREE.Matrix4 | null = null;
 
   /** @param tile metres covered by one repeat of the texture */
   constructor(private tile: number) {}
 
   quad(a: V3, b: V3, c: V3, d: V3) {
+    if (this.transform) {
+      const m = this.transform;
+      [a, b, c, d] = [a, b, c, d].map((p) => p.clone().applyMatrix4(m));
+    }
     const n = new THREE.Vector3().subVectors(b, a).cross(new THREE.Vector3().subVectors(d, a)).normalize();
     // Horizontal-ish faces map on XZ; everything else maps along its own horizontal tangent.
     const isFlat = Math.abs(n.y) > 0.7;
@@ -26,6 +37,7 @@ export class MeshBuilder {
     for (const p of [a, b, c, d]) {
       this.positions.push(p.x, p.y, p.z);
       this.normals.push(n.x, n.y, n.z);
+      this.shades.push(this.shade);
       if (tangent) this.uvs.push(p.dot(tangent) / this.tile, p.y / this.tile);
       else this.uvs.push(p.x / this.tile, p.z / this.tile);
     }
@@ -47,6 +59,10 @@ export class MeshBuilder {
     this.quad(b3, b0, t0, t3);
   }
 
+  get vertexCount() {
+    return this.positions.length / 3;
+  }
+
   get empty() {
     return this.indices.length === 0;
   }
@@ -56,6 +72,7 @@ export class MeshBuilder {
     g.setAttribute('position', new THREE.Float32BufferAttribute(this.positions, 3));
     g.setAttribute('normal', new THREE.Float32BufferAttribute(this.normals, 3));
     g.setAttribute('uv', new THREE.Float32BufferAttribute(this.uvs, 2));
+    g.setAttribute('shade', new THREE.Float32BufferAttribute(this.shades, 1));
     g.setIndex(this.indices);
     g.computeBoundingSphere();
     return g;

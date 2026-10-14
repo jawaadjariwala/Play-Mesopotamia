@@ -20,9 +20,10 @@ Some things you'll be able to do:
 
 ## Status
 
-Phase 0 (look-dev). A test street in Ur with a courtyard house and the
-ziggurat on the horizon, generated from layout data. See [PLAN.md](PLAN.md)
-for the design and roadmap.
+Phase 1. The whole of Ur at its real size, about 1.2 km by 0.8 km inside its
+wall, with 2,567 generated courtyard houses, the temenos and ziggurat, the
+harbours and the river. Walk it in first person; the city builds itself around
+you as you go. See [PLAN.md](PLAN.md) for the design and roadmap.
 
 Play the latest build: https://jawaadjariwala.github.io/Play-Mesopotamia/
 
@@ -34,14 +35,15 @@ npm run dev          # http://localhost:5173
 node scripts/shoot.mjs   # headless check: fps, errors, screenshots (dev server running)
 ```
 
-Camera presets: `?view=street`, `?view=courtyard`, `?view=aerial`. Lighting can
-be tuned from the URL too, for example `?exp=0.9&sun=5&env=0.3&bounce=8&tm=aces`.
+Click to walk: WASD or arrow keys, Shift to run, mouse to look. Fixed camera
+views for screenshots: `?view=street`, `?view=ziggurat`, `?view=aerial`,
+`?view=wall`; add `&autopilot=5` to drift at 5 m/s and test streaming. Lighting
+can be tuned from the URL too, for example `?exp=0.9&sun=5&env=0.3&bounce=8`.
 
 ## Tech
 
 Three.js (WebGPU renderer with automatic WebGL 2 fallback, TSL shaders and
-post-processing), Vite and TypeScript, with Rapier physics and Ink dialogue
-coming in Phase 1. Static hosting on GitHub Pages, no server needed to play.
+post-processing), Rapier physics, Vite and TypeScript, with Ink dialogue to come. Static hosting on GitHub Pages, no server needed to play.
 
 ## Historical sources
 

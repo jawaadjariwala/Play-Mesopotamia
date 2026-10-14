@@ -16,6 +16,8 @@ interface PalmShape {
   pairs: number;
   /** Leaflet half-width at its base; distant palms get wider leaflets so the crown still reads. */
   leafWidth: number;
+  /** Geometry detail: trunk sides and rachis segments. */
+  far?: boolean;
   seed: number;
 }
 
@@ -28,7 +30,9 @@ const OLD = new THREE.Color(0x8c8452);
 const DEAD = new THREE.Color(0x6e5638);
 
 function trunkGeometry(shape: PalmShape): THREE.BufferGeometry {
-  const g = new THREE.CylinderGeometry(0.2, 0.27, shape.height, 10, Math.round(shape.height * 2.5), true);
+  const g = shape.far
+    ? new THREE.CylinderGeometry(0.2, 0.27, shape.height, 6, 6, true)
+    : new THREE.CylinderGeometry(0.2, 0.27, shape.height, 10, Math.round(shape.height * 2.5), true);
   g.translate(0, shape.height / 2, 0);
   const pos = g.attributes.position as THREE.BufferAttribute;
   const uvs = g.attributes.uv as THREE.BufferAttribute;
@@ -93,7 +97,7 @@ function frondGeometry(shape: PalmShape): THREE.BufferGeometry {
     const tipTint = dead ? DEAD : LIVE_TIP;
 
     // Rachis: a thin tapering ribbon.
-    const segments = 10;
+    const segments = shape.far ? 4 : 10;
     for (let s = 0; s < segments; s++) {
       const t0 = s / segments;
       const t1 = (s + 1) / segments;
@@ -157,47 +161,76 @@ const NEAR_SHAPES: PalmShape[] = [
   { height: 7, lean: 0.3, fronds: 32, pairs: 30, leafWidth: 0.05, seed: 37 },
 ];
 const FAR_SHAPES: PalmShape[] = [
-  { height: 10, lean: 0.8, fronds: 22, pairs: 11, leafWidth: 0.13, seed: 41 },
-  { height: 13, lean: 1.5, fronds: 20, pairs: 11, leafWidth: 0.13, seed: 53 },
+  { height: 10, lean: 0.8, fronds: 16, pairs: 7, leafWidth: 0.16, far: true, seed: 41 },
+  { height: 13, lean: 1.5, fronds: 15, pairs: 7, leafWidth: 0.16, far: true, seed: 53 },
 ];
-/** Groves farther than this from the origin use the low-detail shapes and skip shadows. */
-const FAR_DISTANCE = 90;
+/** A grove switches to full-detail palms when the player is this close to its edge. */
+const NEAR_DISTANCE = 110;
 
-export function buildPalms(groves: GroveSpec[], mats: Materials, seed = 7): THREE.Group {
+export interface Palms {
+  group: THREE.Group;
+  update(x: number, z: number): void;
+}
+
+/**
+ * Every grove has a cheap far version (always there) and a detailed near version
+ * (shown, with shadows, only when the player is close). Geometry is shared across groves.
+ */
+export function buildPalms(groves: GroveSpec[], mats: Materials, seed = 7): Palms {
   const rand = mulberry32(seed);
-  const placements: { near: boolean; matrix: THREE.Matrix4 }[] = [];
+  const geoms = (shapes: PalmShape[]) => shapes.map((s) => [trunkGeometry(s), frondGeometry(s)] as const);
+  const nearGeoms = geoms(NEAR_SHAPES);
+  const farGeoms = geoms(FAR_SHAPES);
+  const group = new THREE.Group();
+  group.name = 'palms';
+  const entries: { grove: GroveSpec; near: THREE.Group; far: THREE.Group }[] = [];
+
+  const instanced = (pairs: (readonly [THREE.BufferGeometry, THREE.BufferGeometry])[], matrices: THREE.Matrix4[], shadows: boolean) => {
+    const out = new THREE.Group();
+    pairs.forEach(([trunk, fronds], si) => {
+      const mine = matrices.filter((_, i) => i % pairs.length === si);
+      if (mine.length === 0) return;
+      for (const [geometry, material] of [
+        [trunk, mats.bark],
+        [fronds, mats.frond],
+      ] as const) {
+        const mesh = new THREE.InstancedMesh(geometry, material, mine.length);
+        mine.forEach((m, i) => mesh.setMatrixAt(i, m));
+        mesh.castShadow = shadows;
+        mesh.receiveShadow = true;
+        mesh.computeBoundingSphere();
+        out.add(mesh);
+      }
+    });
+    return out;
+  };
+
   for (const grove of groves) {
-    const near = Math.hypot(...grove.center) < FAR_DISTANCE;
+    const matrices: THREE.Matrix4[] = [];
     for (let i = 0; i < grove.count; i++) {
       const r = grove.radius * Math.sqrt(rand());
       const a = rand() * Math.PI * 2;
       const pos = new THREE.Vector3(grove.center[0] + Math.cos(a) * r, 0, grove.center[1] + Math.sin(a) * r);
       const rot = new THREE.Quaternion().setFromAxisAngle(UP, rand() * Math.PI * 2);
-      const s = 0.8 + rand() * 0.45;
-      placements.push({ near, matrix: new THREE.Matrix4().compose(pos, rot, new THREE.Vector3(s, s, s)) });
+      const sc = 0.8 + rand() * 0.45;
+      matrices.push(new THREE.Matrix4().compose(pos, rot, new THREE.Vector3(sc, sc, sc)));
     }
+    const near = instanced(nearGeoms, matrices, true);
+    const far = instanced(farGeoms, matrices, false);
+    near.visible = false;
+    group.add(near, far);
+    entries.push({ grove, near, far });
   }
 
-  const group = new THREE.Group();
-  group.name = 'palms';
-  for (const near of [true, false]) {
-    const shapes = near ? NEAR_SHAPES : FAR_SHAPES;
-    const mine = placements.filter((p) => p.near === near);
-    shapes.forEach((shape, si) => {
-      const matrices = mine.filter((_, i) => i % shapes.length === si).map((p) => p.matrix);
-      if (matrices.length === 0) return;
-      for (const [geometry, material] of [
-        [trunkGeometry(shape), mats.bark],
-        [frondGeometry(shape), mats.frond],
-      ] as const) {
-        const mesh = new THREE.InstancedMesh(geometry, material, matrices.length);
-        matrices.forEach((m, i) => mesh.setMatrixAt(i, m));
-        mesh.castShadow = near;
-        mesh.receiveShadow = true;
-        mesh.computeBoundingSphere();
-        group.add(mesh);
+  return {
+    group,
+    update(x, z) {
+      for (const e of entries) {
+        const d = Math.hypot(x - e.grove.center[0], z - e.grove.center[1]) - e.grove.radius;
+        const close = d < NEAR_DISTANCE;
+        e.near.visible = close;
+        e.far.visible = !close;
       }
-    });
-  }
-  return group;
+    },
+  };
 }
