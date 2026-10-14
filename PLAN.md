@@ -87,24 +87,66 @@ WebGL renderer.
 
 ## Asset pipeline
 
+Nobody models anything by hand. The city is split by what each kind of thing
+needs:
+
+| What | How it's made | Why |
+|---|---|---|
+| Houses, streets, walls, ziggurat | **Generated in code** from plan data | Ur's buildings are mudbrick boxes around courtyards with flat roofs. A generator gives exact control, real layouts and free colliders |
+| Props (pots, looms, ovens, boats, furniture) | Image-to-3D (Meshy / Tripo / Hunyuan3D), then cleaned up by script | Too detailed to generate in code, simple enough for AI models |
+| Characters | Meshy (pose mode) or Tripo, auto-rigged, Mixamo animations | Rigging by hand is the slowest part of 3D work |
+| Cleanup, decimation, UVs, light baking | Blender driven headlessly by scripts, or through BlenderMCP | Blender does the work but nobody has to click around in it |
+| Distant backdrops (river, palm groves, fields) | Experiment: World Labs Marble splat + collider GLB | Only if Spark works with our renderer (see above) |
+| Intro, story cutscenes, trailer | Higgsfield video, played in-game | Cinematic realism the real-time engine can't match |
+
+### The city generator
+
+Woolley published plans of the Old Babylonian residential quarter at Ur, house
+by house. Those plans get traced into data once:
+
+```ts
+// content/city/ah-site/example-house.json   (shape only, numbers are made up)
+{
+  "id": "example-house",
+  "walls":   [[[0,0],[12.5,0],[12.5,9.8],[0,9.8],[0,0]]],
+  "rooms":   [{ "id": "courtyard", "poly": [[3,3],[7.5,3],[7.5,7],[3,7]], "roof": false }],
+  "doors":   [{ "wall": 0, "at": 4.1, "width": 0.9 }],
+  "stairs":  [{ "room": "r4", "to": "upper" }],
+  "storeys": 2,
+  "evidence": "excavated"
+}
 ```
-reference photos / museum objects / excavation plans
-        |
-        v
-concept image (AI image model, checked against references)
-        |
-        +--> architecture: built by hand in Blender as a modular kit
-        |      (walls, doorways, roofs, stairs) because it's simple geometry
-        |
-        +--> props + characters: Meshy / Tripo / Hunyuan3D image-to-3D
-        |      -> Blender cleanup (decimate, fix UVs, bake textures)
-        |      -> characters rigged (Meshy pose mode or Mixamo) + animations
-        v
-glTF-Transform: meshopt compression, KTX2 textures, LODs
-        |
-        v
-public/assets/<district>/*.glb   (streamed per district)
-```
+
+The generator turns that into geometry: extruded walls with wall thickness and
+height rules, plastered or bare brick, door frames, roof beams and matting,
+stairs, drains, and decals for wear. Physics colliders come from the same data.
+Streets are the gaps between houses, exactly as on the plan. The ziggurat's
+known dimensions feed the same kind of generator.
+
+Where the plan is guesswork (upper floors, roofs, wall heights), the data says
+so with `"evidence": "inferred"`, and the codex can explain the guess.
+
+### Blender without opening Blender
+
+Blender runs in the background (`blender -b -P script.py`) for batch jobs:
+decimating AI meshes, fixing normals, making LODs, baking lightmaps. For
+one-off work, [BlenderMCP](https://github.com/ahujasid/blender-mcp) (MIT) lets
+an AI assistant drive Blender directly and pull Poly Haven textures, Sketchfab
+models and Hunyuan3D / Tripo / Rodin generations. Its code-execution tool runs
+arbitrary Python inside Blender and its socket has no auth, so it stays on
+localhost and work is saved before each session.
+
+### Existing assets worth using
+
+There is no open-source walkable Mesopotamian city to build on. What does exist:
+
+| Asset | Licence | Use |
+|---|---|---|
+| Poly Haven, ambientCG textures and HDRIs | CC0 | All base materials and skies |
+| Ishtar Gate models on Sketchfab (several) | CC BY (check each) | Babylon chapter |
+| Ziggurat of Ur drone photogrammetry, Lagash Archaeological Project | Not stated | Reference only for proportions and ruins, unless permission is given |
+| Standard of Ur model (British Museum images) | CC BY-NC-SA | Reference only |
+| Unreal Marketplace / Fab Mesopotamian city and prop packs ($15 to $20 range) | Fab Standard or UE Marketplace licence | Possible prop source. Check the listing allows use outside Unreal before buying; Unreal assets need heavy decimation for the web |
 
 Rules
 - Every AI-generated object is checked against a real reference before it ships.
@@ -188,14 +230,16 @@ Each phase ends with something deployed and playable.
 - [ ] Vite + TypeScript + React Three Fiber, `WebGPURenderer` with `await renderer.init()`
 - [ ] Spike on Safari, Firefox and a phone; fall back to WebGL renderer if it fights
 - [ ] Ground, sun, HDRI sky, fog, post FX
-- [ ] One mudbrick wall section that looks real in a screenshot
+- [ ] One generated mudbrick wall section that looks real in a screenshot
+- [ ] Headless Blender script that takes one AI-generated pot and outputs a web-ready GLB with LODs
 - [ ] FPS and memory overlay; record numbers in this file
 - [ ] Deploy to Cloudflare Pages with GitHub Actions
 
 Exit: a screenshot people mistake for a render, at measured fps.
 
 ### Phase 1: vertical slice (2 to 3 weeks)
-- [ ] Modular mudbrick kit in Blender (walls, doors, roof, stairs)
+- [ ] Trace one block of Woolley's residential quarter plan into JSON
+- [ ] City generator v1: walls, doors, roofs, stairs, colliders from that JSON
 - [ ] One street and one enterable courtyard house
 - [ ] Third-person controller with Rapier
 - [ ] Interaction prompts, inspect view, codex with 10 entries
@@ -239,7 +283,8 @@ Later: Babylon chapter, WebXR mode, classroom multiplayer.
 | Risk | Mitigation |
 |---|---|
 | Looks great in screenshots, runs badly | Measure fps from Phase 0; budgets per district; test on a phone every phase |
-| AI-generated assets look generic or wrong for the period | Reference first, generate second; architecture made by hand |
+| AI-generated assets look generic or wrong for the period | Reference first, generate second; architecture generated from excavation plans |
+| Generated buildings look procedural and repetitive | Per-house variation in plaster, wear, clutter and lighting; hand-placed props on top |
 | Scope grows into "all of Mesopotamia" | One city, one decade, until Phase 5 ships |
 | Historical errors | Every fact cited; evidence labels in-game; invite corrections via issues |
 | WebGPU edge cases | Automatic WebGL 2 fallback; browser spike in Phase 0 |
