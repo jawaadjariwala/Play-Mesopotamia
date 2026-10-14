@@ -1,5 +1,23 @@
 import * as THREE from 'three/webgpu';
-import { color, float, luminance, mix, mx_noise_float, positionWorld, smoothstep, texture, uv, vec3 } from 'three/tsl';
+import {
+  attribute,
+  color,
+  cos,
+  float,
+  hash,
+  instanceIndex,
+  luminance,
+  mix,
+  mx_noise_float,
+  positionLocal,
+  positionWorld,
+  sin,
+  smoothstep,
+  texture,
+  time,
+  uv,
+  vec3,
+} from 'three/tsl';
 
 const BASE = import.meta.env.BASE_URL;
 const loader = new THREE.TextureLoader();
@@ -28,6 +46,8 @@ interface SurfaceOptions {
   saturation?: number;
   /** Patches where the surface layer has fallen away to show what's underneath. */
   reveal?: { diff: THREE.Texture; scale: number; threshold: number; tint: THREE.ColorRepresentation };
+  /** Dark vertical runs where rain has washed mud down from the wall tops. */
+  streaks?: number;
 }
 
 async function surface(id: string, anisotropy: number, opts: SurfaceOptions) {
@@ -63,6 +83,13 @@ function surfaceFrom({ diff, nor, arm }: Awaited<ReturnType<typeof loadSet>>, op
     const under = texture(r.diff, uv().mul(r.scale)).rgb.mul(color(new THREE.Color(r.tint)));
     base = mix(base.mul(rim.mul(0.35).oneMinus()), under, mask);
   }
+  if (opts.streaks) {
+    // Noise stretched vertically reads as runs; strongest just under the wall tops.
+    const runs = mx_noise_float(vec3(positionWorld.x.mul(2.6), positionWorld.y.mul(0.12), positionWorld.z.mul(2.6)));
+    const fromTop = smoothstep(1.4, 3.4, positionWorld.y);
+    const streak = smoothstep(0.15, 0.6, runs).mul(fromTop).mul(opts.streaks);
+    base = base.mul(streak.mul(0.32).oneMinus());
+  }
   m.colorNode = mix(base, base.mul(dust).mul(1.6), grime.clamp(0, 0.6));
   return m;
 }
@@ -73,6 +100,10 @@ export interface Materials {
   mudRoof: THREE.MeshStandardNodeMaterial;
   ground: THREE.MeshStandardNodeMaterial;
   timber: THREE.MeshStandardNodeMaterial;
+  pottery: THREE.MeshStandardNodeMaterial;
+  bark: THREE.MeshStandardNodeMaterial;
+  /** Palm fronds: colour comes from vertex colours, sway from the wind uniform. */
+  frond: THREE.MeshStandardNodeMaterial;
 }
 
 export async function createMaterials(renderer: THREE.WebGPURenderer): Promise<Materials> {
@@ -84,14 +115,28 @@ export async function createMaterials(renderer: THREE.WebGPURenderer): Promise<M
     groundGrime: 0.9,
     tint: 0xf0e2cc,
     reveal: { diff: brickSet.diff, scale: 2.4 / 1.6, threshold: 0.62, tint: 0xa08a70 },
+    streaks: 1,
   });
   // Ur's baked bricks are a pale buff, not the orange of modern fired brick.
   const bakedBrick = surfaceFrom(brickSet, { variation: 0.15, groundGrime: 0.7, tint: 0xe6d6bc, saturation: 0.45 });
-  const [mudRoof, ground] = await Promise.all([
+  const [mudRoof, ground, timber, bark] = await Promise.all([
     surface('clay_block_wall', aniso, { variation: 0.2, groundGrime: 0 }),
     surface('dirt_floor', aniso, { variation: 0.3, groundGrime: 0, normalStrength: 1.2 }),
+    // Doors and lintels: palm and poplar planks, sun-bleached.
+    surface('weathered_brown_planks', aniso, { variation: 0.15, groundGrime: 0.4, tint: 0xc4ad94, saturation: 0.75 }),
+    surface('bark_willow', aniso, { variation: 0.2, groundGrime: 0.3, tint: 0xcdb89c, saturation: 0.8 }),
   ]);
-  // Palm-trunk lintels and door frames; plain until we have a CC0 wood set.
-  const timber = new THREE.MeshStandardNodeMaterial({ color: 0x4a3626, roughness: 0.9 });
-  return { plaster, bakedBrick, mudRoof, ground, timber };
+  // Unglazed wheel-thrown pottery: pale buff clay. Reuses the plaster maps for surface texture.
+  const pottery = surfaceFrom(plasterSet, { variation: 0.25, groundGrime: 0.5, tint: 0xffe2bd, saturation: 0.9 });
+  pottery.roughness = 0.85;
+
+  const frond = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.7, side: THREE.DoubleSide });
+  // Sway weight is baked per vertex (0 at the crown, 1 at frond tips); each palm gets its own phase.
+  // Instancing runs before positionNode, so positionLocal here is already in instance space.
+  const reach = attribute('sway', 'float').mul(0.16);
+  const phase = hash(instanceIndex).mul(6.28);
+  frond.positionNode = positionLocal.add(
+    vec3(sin(time.mul(1.1).add(phase).add(positionLocal.y.mul(0.6))), 0, cos(time.mul(0.83).add(phase))).mul(reach),
+  );
+  return { plaster, bakedBrick, mudRoof, ground, timber, pottery, bark, frond };
 }

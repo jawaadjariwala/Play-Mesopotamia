@@ -12,6 +12,8 @@ export interface DoorSpec {
   at: number;
   width: number;
   height: number;
+  /** A wooden door leaf hung on the inside face, opened by `open` degrees. */
+  leaf?: { hinge: 'start' | 'end'; open: number };
 }
 
 export interface WallSpec {
@@ -25,6 +27,13 @@ export interface WallSpec {
 export interface RoofSpec {
   /** Axis-aligned [x0, z0, x1, z1] in building coordinates. */
   rect: [number, number, number, number];
+}
+
+export interface FloorSpec {
+  /** Axis-aligned [x0, z0, x1, z1] in building coordinates. */
+  rect: [number, number, number, number];
+  /** Courtyards at Ur were often paved with baked brick. */
+  material: 'brick';
 }
 
 export interface BuildingSpec {
@@ -42,6 +51,7 @@ export interface BuildingSpec {
   roofHeight: number;
   walls: WallSpec[];
   roofs?: RoofSpec[];
+  floors?: FloorSpec[];
 }
 
 /** Oriented box for the physics world (Phase 1). */
@@ -58,6 +68,64 @@ export interface BuiltObject {
 
 const LINTEL_DEPTH = 0.18;
 const ROOF_THICKNESS = 0.32;
+const PAVING_HEIGHT = 0.05;
+const LEAF_THICKNESS = 0.06;
+
+/** Eroded wall tops: built from short segments whose corners rise and fall with a smooth noise. */
+const CAP_DEPTH = 0.16;
+const CAP_STEP = 0.3;
+const CAP_EDGE = 0.1;
+
+function erosion(x: number, z: number, seed: number): number {
+  return (
+    0.5 * Math.sin(1.7 * x + 0.9 * z + seed) +
+    0.3 * Math.sin(3.7 * z - 2.9 * x + seed * 1.7) +
+    0.2 * Math.sin(8.3 * x + 6.1 * z + seed * 0.3)
+  );
+}
+
+function seedFrom(id: string): number {
+  let h = 0;
+  for (const c of id) h = (h * 31 + c.charCodeAt(0)) % 1000;
+  return h / 100;
+}
+
+/**
+ * Rounded, uneven top for a wall run: a raised middle with edges that slump outward,
+ * the way rain wears down the top of an unprotected mudbrick wall.
+ */
+function erodedCap(
+  b: MeshBuilder,
+  from: THREE.Vector2,
+  along: THREE.Vector2,
+  a0: number,
+  a1: number,
+  ht: number,
+  y: number,
+  seed: number,
+) {
+  const across = new THREE.Vector2(-along.y, along.x);
+  const offsets = [-ht, -ht + CAP_EDGE, ht - CAP_EDGE, ht];
+  const corner = (a: number, s: number, top: boolean) => {
+    const p = from.clone().addScaledVector(along, a).addScaledVector(across, s);
+    if (!top) return new THREE.Vector3(p.x, y - CAP_DEPTH, p.y);
+    const e = erosion(p.x, p.y, seed);
+    const isEdge = Math.abs(Math.abs(s) - ht) < 1e-6;
+    const h = isEdge ? y - 0.07 + e * 0.035 : y + 0.015 + e * 0.05;
+    return new THREE.Vector3(p.x, h, p.y);
+  };
+  const n = Math.max(1, Math.round((a1 - a0) / CAP_STEP));
+  for (let k = 0; k < n; k++) {
+    const k0 = a0 + ((a1 - a0) * k) / n;
+    const k1 = a0 + ((a1 - a0) * (k + 1)) / n;
+    for (let j = 0; j < 3; j++) {
+      const lo = offsets[j];
+      const hi = offsets[j + 1];
+      const quad = (top: boolean) => [corner(k0, hi, top), corner(k1, hi, top), corner(k1, lo, top), corner(k0, lo, top)];
+      b.prism(quad(false), quad(true));
+    }
+  }
+}
 
 export function buildBuilding(spec: BuildingSpec, mats: Materials): BuiltObject {
   const plaster = new MeshBuilder(2.4);
@@ -67,6 +135,7 @@ export function buildBuilding(spec: BuildingSpec, mats: Materials): BuiltObject 
   const colliders: ColliderBox[] = [];
 
   const ht = spec.thickness / 2;
+  const seed = seedFrom(spec.id);
 
   for (const wall of spec.walls) {
     const from = new THREE.Vector2(...wall.from);
@@ -95,6 +164,21 @@ export function buildBuilding(spec: BuildingSpec, mats: Materials): BuiltObject 
         footprint(from, along, d0 - 0.2, d1 + 0.2, ht + 0.03, d.height),
         footprint(from, along, d0 - 0.2, d1 + 0.2, ht + 0.03, d.height + LINTEL_DEPTH),
       );
+
+      if (d.leaf) {
+        // Hung on the inside face (+across is inside for walls listed counter-clockwise).
+        const across = new THREE.Vector2(-along.y, along.x);
+        const theta = THREE.MathUtils.degToRad(d.leaf.open);
+        const sign = d.leaf.hinge === 'start' ? 1 : -1;
+        const hingeAt = d.leaf.hinge === 'start' ? d0 : d1;
+        const hinge = from.clone().addScaledVector(along, hingeAt).addScaledVector(across, ht - LEAF_THICKNESS);
+        const dir = along.clone().multiplyScalar(sign * Math.cos(theta)).addScaledVector(across, Math.sin(theta)).normalize();
+        const w = d.width - 0.04;
+        timber.prism(
+          footprint(hinge, dir, 0, w, LEAF_THICKNESS / 2, 0.02),
+          footprint(hinge, dir, 0, w, LEAF_THICKNESS / 2, d.height - 0.03),
+        );
+      }
     }
     if (end > cursor) runs.push([cursor, end, 0, height]);
 
@@ -106,7 +190,11 @@ export function buildBuilding(spec: BuildingSpec, mats: Materials): BuiltObject 
       }
       if (y1 > spec.footingHeight) {
         const py0 = Math.max(y0, spec.footingHeight);
-        plaster.prism(footprint(from, along, a0, a1, ht, py0), footprint(from, along, a0, a1, ht, y1));
+        // Only tops that stand clear of the roofs are seen, so only those get eroded caps.
+        const capped = y1 > spec.roofHeight;
+        const top = capped ? y1 - CAP_DEPTH : y1;
+        plaster.prism(footprint(from, along, a0, a1, ht, py0), footprint(from, along, a0, a1, ht, top));
+        if (capped) erodedCap(plaster, from, along, a0, a1, ht, y1, seed);
       }
       const mid = from.clone().addScaledVector(along, (a0 + a1) / 2);
       colliders.push({
@@ -129,6 +217,11 @@ export function buildBuilding(spec: BuildingSpec, mats: Materials): BuiltObject 
       halfExtents: new THREE.Vector3((x1 - x0) / 2, ROOF_THICKNESS / 2, (z1 - z0) / 2),
       rotationY: 0,
     });
+  }
+
+  for (const f of spec.floors ?? []) {
+    const [x0, z0, x1, z1] = f.rect;
+    brick.prism(rectCorners(x0, z0, x1, z1, 0), rectCorners(x0, z0, x1, z1, PAVING_HEIGHT));
   }
 
   const group = new THREE.Group();

@@ -55,4 +55,4 @@ Literature. Where the evidence runs out and the game has to guess, it says so.
 Code: MIT. Historical content and art: to be decided before the first release.
 
 Textures from [Poly Haven](https://polyhaven.com) (CC0): Clay Plaster, Brown
-Brick 02, Dirt Floor, Clay Block Wall.
+Brick 02, Dirt Floor, Clay Block Wall, Weathered Brown Planks, Bark Willow.

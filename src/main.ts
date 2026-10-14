@@ -6,6 +6,8 @@ import { StatsOverlay } from './engine/stats';
 import { createMaterials } from './world/materials';
 import { MeshBuilder, rectCorners } from './world/generator/meshBuilder';
 import { buildBuilding, buildZiggurat, type BuildingSpec, type ZigguratSpec } from './world/generator/buildings';
+import { buildPalms, type GroveSpec } from './world/props/palm';
+import { buildPottery, type PropSpec } from './world/props/pottery';
 import block from '../content/city/test-block.json';
 
 /** Camera presets for look-dev screenshots: ?view=street | courtyard | aerial */
@@ -57,6 +59,8 @@ async function main() {
     scene.add(buildBuilding(spec, mats).group);
   }
   scene.add(buildZiggurat(block.ziggurat as ZigguratSpec, mats));
+  scene.add(buildPottery(block.props as PropSpec[], mats));
+  scene.add(buildPalms(block.palmGroves as GroveSpec[], mats));
 
   const pipeline = createPipeline(renderer, scene, camera);
   const stats = new StatsOverlay(renderer, isWebGPU(renderer) ? 'WebGPU' : 'WebGL 2 fallback');

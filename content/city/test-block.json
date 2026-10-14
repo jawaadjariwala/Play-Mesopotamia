@@ -31,7 +31,11 @@
       {
        "at": 2.0,
        "width": 0.9,
-       "height": 1.95
+       "height": 1.95,
+       "leaf": {
+        "hinge": "start",
+        "open": 62
+       }
       }
      ]
     },
@@ -115,7 +119,11 @@
       {
        "at": 2.25,
        "width": 1.1,
-       "height": 2.2
+       "height": 2.2,
+       "leaf": {
+        "hinge": "end",
+        "open": 35
+       }
       }
      ]
     },
@@ -273,6 +281,17 @@
       7
      ]
     }
+   ],
+   "floors": [
+    {
+     "rect": [
+      4,
+      3.5,
+      8.5,
+      7
+     ],
+     "material": "brick"
+    }
    ]
   },
   {
@@ -301,7 +320,11 @@
       {
        "at": 3.0,
        "width": 0.9,
-       "height": 1.95
+       "height": 1.95,
+       "leaf": {
+        "hinge": "start",
+        "open": 25
+       }
       }
      ]
     },
@@ -373,7 +396,11 @@
       {
        "at": 6.5,
        "width": 0.9,
-       "height": 1.95
+       "height": 1.95,
+       "leaf": {
+        "hinge": "start",
+        "open": 4
+       }
       }
      ]
     },
@@ -510,7 +537,11 @@
       {
        "at": 4.0,
        "width": 0.9,
-       "height": 1.95
+       "height": 1.95,
+       "leaf": {
+        "hinge": "start",
+        "open": 25
+       }
       }
      ]
     },
@@ -582,7 +613,11 @@
       {
        "at": 8.0,
        "width": 0.9,
-       "height": 1.95
+       "height": 1.95,
+       "leaf": {
+        "hinge": "start",
+        "open": 4
+       }
       }
      ]
     },
@@ -654,7 +689,11 @@
       {
        "at": 6.0,
        "width": 0.9,
-       "height": 1.95
+       "height": 1.95,
+       "leaf": {
+        "hinge": "start",
+        "open": 25
+       }
       }
      ]
     },
@@ -728,5 +767,172 @@
     "batter": 0.5
    }
   ]
- }
+ },
+ "props": [
+  {
+   "type": "storageJar",
+   "position": [
+    4.85,
+    5.95
+   ],
+   "y": 0.05
+  },
+  {
+   "type": "storageJar",
+   "position": [
+    5.45,
+    5.9
+   ],
+   "y": 0.05,
+   "scale": 0.9
+  },
+  {
+   "type": "storageJar",
+   "position": [
+    7.85,
+    6.05
+   ],
+   "y": 0.05,
+   "tilt": 6
+  },
+  {
+   "type": "storageJar",
+   "position": [
+    7.9,
+    6.55
+   ],
+   "y": 0.05,
+   "scale": 0.85
+  },
+  {
+   "type": "cookingPot",
+   "position": [
+    5.1,
+    7.7
+   ],
+   "y": 0.05
+  },
+  {
+   "type": "bowl",
+   "position": [
+    5.55,
+    7.95
+   ],
+   "y": 0.05
+  },
+  {
+   "type": "bowl",
+   "position": [
+    5.35,
+    8.2
+   ],
+   "y": 0.05,
+   "scale": 0.9
+  },
+  {
+   "type": "storageJar",
+   "position": [
+    3.1,
+    1.15
+   ],
+   "tilt": 4
+  },
+  {
+   "type": "cookingPot",
+   "position": [
+    3.6,
+    1.2
+   ]
+  },
+  {
+   "type": "storageJar",
+   "position": [
+    16.5,
+    1.2
+   ],
+   "scale": 0.9
+  },
+  {
+   "type": "storageJar",
+   "position": [
+    9.0,
+    -1.0
+   ],
+   "scale": 1.05
+  },
+  {
+   "type": "bowl",
+   "position": [
+    9.5,
+    -0.95
+   ]
+  }
+ ],
+ "palmGroves": [
+  {
+   "center": [
+    44,
+    24
+   ],
+   "radius": 12,
+   "count": 8
+  },
+  {
+   "center": [
+    58,
+    -26
+   ],
+   "radius": 16,
+   "count": 10
+  },
+  {
+   "center": [
+    -34,
+    28
+   ],
+   "radius": 14,
+   "count": 8
+  },
+  {
+   "center": [
+    -30,
+    -34
+   ],
+   "radius": 14,
+   "count": 8
+  },
+  {
+   "center": [
+    110,
+    62
+   ],
+   "radius": 30,
+   "count": 16
+  },
+  {
+   "center": [
+    112,
+    -64
+   ],
+   "radius": 30,
+   "count": 16
+  },
+  {
+   "center": [
+    230,
+    0
+   ],
+   "radius": 45,
+   "count": 20
+  },
+  {
+   "center": [
+    -140,
+    10
+   ],
+   "radius": 50,
+   "count": 18
+  }
+ ],
+ "propsNote": "Pottery shapes are generic wheel-thrown forms; palm placement is invented."
 }

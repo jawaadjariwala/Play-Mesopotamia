@@ -257,22 +257,30 @@ Each phase ends with something deployed and playable.
 - [x] Ground, physical sky, sun with soft shadows, warm bounce light, fog, GTAO, bloom, FXAA
 - [x] City generator v0: walls with doors and lintels, baked-brick footing, roofs, collider boxes, ziggurat terraces
 - [x] Test block: one courtyard house, six neighbours, a street, the ziggurat at the end
-- [x] Worn plaster showing mudbrick underneath, grime at the base of walls
+- [x] Worn plaster showing mudbrick underneath, grime at the base of walls, rain streaks
+- [x] Eroded, uneven wall tops; wooden door leaves; baked-brick courtyard paving
+- [x] Procedural date palms (instanced, swaying in the wind) in groves around the city
+- [x] Wheel-thrown pottery generated from jar, cooking-pot and bowl profiles
 - [ ] One generated wall that looks real in a screenshot (first pass done, not there yet)
-- [ ] Headless Blender script that takes one AI-generated pot and outputs a web-ready GLB with LODs
+- [ ] Headless Blender script that takes one AI-generated prop and outputs a web-ready GLB with LODs (pots turned out not to need it)
 - [x] FPS overlay; `scripts/shoot.mjs` for headless checks
-- [ ] Record fps on a real laptop and phone
+- [x] Record fps on a real laptop: 60 fps in Chrome (before palms and props)
+- [ ] Re-check the laptop with palms and props, then a phone
 - [x] Deploy to GitHub Pages with GitHub Actions
 
-Measured so far (headless Chrome on an M-series Mac, 960x540, so a smoke test
-only): 60 fps (vsync-capped), about 100 draw calls, 6k triangles, 9.7 MB of
-textures, 256 KB of gzipped JS.
+Measured so far:
+- Laptop, Chrome: 60 fps with the first test block.
+- Headless Chrome (M-series Mac, 960x540, a smoke test only), with palms and
+  pottery: 60 fps (vsync-capped), about 135 draw calls, about 670k triangles
+  per frame summed over the normal, shadow and main passes, 11 MB of textures,
+  256 KB of gzipped JS. Palms are most of the triangles, so they're the first
+  thing to give LODs when phones get tested.
 
 Exit: a screenshot people mistake for a render, at measured fps.
 
 ### Phase 1: vertical slice (2 to 3 weeks)
 - [ ] Trace one block of Woolley's residential quarter plan into JSON
-- [ ] City generator v1: stairs, drains, wall-top wear and irregular edges; colliders into Rapier
+- [ ] City generator v1: stairs, drains, rounded corners and jambs; colliders into Rapier
 - [ ] One street and one enterable courtyard house
 - [ ] Third-person controller with Rapier
 - [ ] Interaction prompts, inspect view, codex with 10 entries
