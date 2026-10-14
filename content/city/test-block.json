@@ -1,0 +1,732 @@
+{
+ "id": "test-block",
+ "evidence": "invented",
+ "note": "Street widths and the baked-brick footing under plastered mudbrick follow what Woolley recorded for the residential quarter. Wall heights and the arrangement are guesses.",
+ "buildings": [
+  {
+   "id": "test-courtyard-house",
+   "name": "Courtyard house (test layout)",
+   "evidence": "invented",
+   "note": "Phase 0 test layout in the typical Old Babylonian pattern: rooms around an open central court. Will be replaced by a house traced from Woolley's plans.",
+   "position": [
+    0,
+    1.8
+   ],
+   "rotation": 0,
+   "wallHeight": 3.8,
+   "thickness": 0.6,
+   "footingHeight": 0.9,
+   "roofHeight": 3.4,
+   "walls": [
+    {
+     "from": [
+      0,
+      0
+     ],
+     "to": [
+      12,
+      0
+     ],
+     "doors": [
+      {
+       "at": 2.0,
+       "width": 0.9,
+       "height": 1.95
+      }
+     ]
+    },
+    {
+     "from": [
+      12,
+      0
+     ],
+     "to": [
+      12,
+      10
+     ]
+    },
+    {
+     "from": [
+      12,
+      10
+     ],
+     "to": [
+      0,
+      10
+     ]
+    },
+    {
+     "from": [
+      0,
+      10
+     ],
+     "to": [
+      0,
+      0
+     ]
+    },
+    {
+     "from": [
+      4,
+      3.5
+     ],
+     "to": [
+      8.5,
+      3.5
+     ],
+     "height": 3.55,
+     "doors": [
+      {
+       "at": 2.25,
+       "width": 1.0,
+       "height": 2.1
+      }
+     ]
+    },
+    {
+     "from": [
+      8.5,
+      3.5
+     ],
+     "to": [
+      8.5,
+      7
+     ],
+     "height": 3.55,
+     "doors": [
+      {
+       "at": 1.75,
+       "width": 0.85,
+       "height": 1.95
+      }
+     ]
+    },
+    {
+     "from": [
+      8.5,
+      7
+     ],
+     "to": [
+      4,
+      7
+     ],
+     "height": 3.55,
+     "doors": [
+      {
+       "at": 2.25,
+       "width": 1.1,
+       "height": 2.2
+      }
+     ]
+    },
+    {
+     "from": [
+      4,
+      7
+     ],
+     "to": [
+      4,
+      3.5
+     ],
+     "height": 3.55,
+     "doors": [
+      {
+       "at": 1.75,
+       "width": 0.85,
+       "height": 1.95
+      }
+     ]
+    },
+    {
+     "from": [
+      4,
+      0
+     ],
+     "to": [
+      4,
+      3.5
+     ],
+     "height": 3.3,
+     "doors": [
+      {
+       "at": 1.75,
+       "width": 0.85,
+       "height": 1.95
+      }
+     ]
+    },
+    {
+     "from": [
+      8.5,
+      0
+     ],
+     "to": [
+      8.5,
+      3.5
+     ],
+     "height": 3.3
+    },
+    {
+     "from": [
+      0,
+      3.5
+     ],
+     "to": [
+      4,
+      3.5
+     ],
+     "height": 3.3,
+     "doors": [
+      {
+       "at": 2.0,
+       "width": 0.85,
+       "height": 1.95
+      }
+     ]
+    },
+    {
+     "from": [
+      8.5,
+      3.5
+     ],
+     "to": [
+      12,
+      3.5
+     ],
+     "height": 3.3
+    },
+    {
+     "from": [
+      0,
+      7
+     ],
+     "to": [
+      4,
+      7
+     ],
+     "height": 3.3
+    },
+    {
+     "from": [
+      8.5,
+      7
+     ],
+     "to": [
+      12,
+      7
+     ],
+     "height": 3.3
+    },
+    {
+     "from": [
+      4,
+      7
+     ],
+     "to": [
+      4,
+      10
+     ],
+     "height": 3.3
+    },
+    {
+     "from": [
+      8.5,
+      7
+     ],
+     "to": [
+      8.5,
+      10
+     ],
+     "height": 3.3
+    }
+   ],
+   "roofs": [
+    {
+     "rect": [
+      0,
+      0,
+      12,
+      3.5
+     ]
+    },
+    {
+     "rect": [
+      0,
+      7,
+      12,
+      10
+     ]
+    },
+    {
+     "rect": [
+      0,
+      3.5,
+      4,
+      7
+     ]
+    },
+    {
+     "rect": [
+      8.5,
+      3.5,
+      12,
+      7
+     ]
+    }
+   ]
+  },
+  {
+   "id": "test-neighbour-1",
+   "evidence": "invented",
+   "position": [
+    12.7,
+    1.8
+   ],
+   "rotation": 0,
+   "wallHeight": 3.7,
+   "thickness": 0.6,
+   "footingHeight": 0.9,
+   "roofHeight": 3.3000000000000003,
+   "walls": [
+    {
+     "from": [
+      0,
+      0
+     ],
+     "to": [
+      10.5,
+      0
+     ],
+     "doors": [
+      {
+       "at": 3.0,
+       "width": 0.9,
+       "height": 1.95
+      }
+     ]
+    },
+    {
+     "from": [
+      10.5,
+      0
+     ],
+     "to": [
+      10.5,
+      9
+     ]
+    },
+    {
+     "from": [
+      10.5,
+      9
+     ],
+     "to": [
+      0,
+      9
+     ]
+    },
+    {
+     "from": [
+      0,
+      9
+     ],
+     "to": [
+      0,
+      0
+     ]
+    }
+   ],
+   "roofs": [
+    {
+     "rect": [
+      0,
+      0,
+      10.5,
+      9
+     ]
+    }
+   ]
+  },
+  {
+   "id": "test-neighbour-2",
+   "evidence": "invented",
+   "position": [
+    23.9,
+    1.8
+   ],
+   "rotation": 0,
+   "wallHeight": 4.1,
+   "thickness": 0.6,
+   "footingHeight": 0.9,
+   "roofHeight": 3.6999999999999997,
+   "walls": [
+    {
+     "from": [
+      0,
+      0
+     ],
+     "to": [
+      9,
+      0
+     ],
+     "doors": [
+      {
+       "at": 6.5,
+       "width": 0.9,
+       "height": 1.95
+      }
+     ]
+    },
+    {
+     "from": [
+      9,
+      0
+     ],
+     "to": [
+      9,
+      11
+     ]
+    },
+    {
+     "from": [
+      9,
+      11
+     ],
+     "to": [
+      0,
+      11
+     ]
+    },
+    {
+     "from": [
+      0,
+      11
+     ],
+     "to": [
+      0,
+      0
+     ]
+    }
+   ],
+   "roofs": [
+    {
+     "rect": [
+      0,
+      0,
+      9,
+      11
+     ]
+    }
+   ]
+  },
+  {
+   "id": "test-neighbour-3",
+   "evidence": "invented",
+   "position": [
+    -10.8,
+    1.8
+   ],
+   "rotation": 0,
+   "wallHeight": 3.6,
+   "thickness": 0.6,
+   "footingHeight": 0.9,
+   "roofHeight": 3.2,
+   "walls": [
+    {
+     "from": [
+      0,
+      0
+     ],
+     "to": [
+      9.5,
+      0
+     ]
+    },
+    {
+     "from": [
+      9.5,
+      0
+     ],
+     "to": [
+      9.5,
+      8.5
+     ]
+    },
+    {
+     "from": [
+      9.5,
+      8.5
+     ],
+     "to": [
+      0,
+      8.5
+     ]
+    },
+    {
+     "from": [
+      0,
+      8.5
+     ],
+     "to": [
+      0,
+      0
+     ]
+    }
+   ],
+   "roofs": [
+    {
+     "rect": [
+      0,
+      0,
+      9.5,
+      8.5
+     ]
+    }
+   ]
+  },
+  {
+   "id": "test-neighbour-4",
+   "evidence": "invented",
+   "position": [
+    14,
+    -1.6
+   ],
+   "rotation": 180,
+   "wallHeight": 3.9,
+   "thickness": 0.6,
+   "footingHeight": 0.9,
+   "roofHeight": 3.5,
+   "walls": [
+    {
+     "from": [
+      0,
+      0
+     ],
+     "to": [
+      13,
+      0
+     ],
+     "doors": [
+      {
+       "at": 4.0,
+       "width": 0.9,
+       "height": 1.95
+      }
+     ]
+    },
+    {
+     "from": [
+      13,
+      0
+     ],
+     "to": [
+      13,
+      10
+     ]
+    },
+    {
+     "from": [
+      13,
+      10
+     ],
+     "to": [
+      0,
+      10
+     ]
+    },
+    {
+     "from": [
+      0,
+      10
+     ],
+     "to": [
+      0,
+      0
+     ]
+    }
+   ],
+   "roofs": [
+    {
+     "rect": [
+      0,
+      0,
+      13,
+      10
+     ]
+    }
+   ]
+  },
+  {
+   "id": "test-neighbour-5",
+   "evidence": "invented",
+   "position": [
+    26,
+    -1.6
+   ],
+   "rotation": 180,
+   "wallHeight": 3.6,
+   "thickness": 0.6,
+   "footingHeight": 0.9,
+   "roofHeight": 3.2,
+   "walls": [
+    {
+     "from": [
+      0,
+      0
+     ],
+     "to": [
+      11.4,
+      0
+     ],
+     "doors": [
+      {
+       "at": 8.0,
+       "width": 0.9,
+       "height": 1.95
+      }
+     ]
+    },
+    {
+     "from": [
+      11.4,
+      0
+     ],
+     "to": [
+      11.4,
+      9
+     ]
+    },
+    {
+     "from": [
+      11.4,
+      9
+     ],
+     "to": [
+      0,
+      9
+     ]
+    },
+    {
+     "from": [
+      0,
+      9
+     ],
+     "to": [
+      0,
+      0
+     ]
+    }
+   ],
+   "roofs": [
+    {
+     "rect": [
+      0,
+      0,
+      11.4,
+      9
+     ]
+    }
+   ]
+  },
+  {
+   "id": "test-neighbour-6",
+   "evidence": "invented",
+   "position": [
+    0.6,
+    -1.6
+   ],
+   "rotation": 180,
+   "wallHeight": 4.0,
+   "thickness": 0.6,
+   "footingHeight": 0.9,
+   "roofHeight": 3.6,
+   "walls": [
+    {
+     "from": [
+      0,
+      0
+     ],
+     "to": [
+      10.5,
+      0
+     ],
+     "doors": [
+      {
+       "at": 6.0,
+       "width": 0.9,
+       "height": 1.95
+      }
+     ]
+    },
+    {
+     "from": [
+      10.5,
+      0
+     ],
+     "to": [
+      10.5,
+      9.5
+     ]
+    },
+    {
+     "from": [
+      10.5,
+      9.5
+     ],
+     "to": [
+      0,
+      9.5
+     ]
+    },
+    {
+     "from": [
+      0,
+      9.5
+     ],
+     "to": [
+      0,
+      0
+     ]
+    }
+   ],
+   "roofs": [
+    {
+     "rect": [
+      0,
+      0,
+      10.5,
+      9.5
+     ]
+    }
+   ]
+  }
+ ],
+ "ziggurat": {
+  "evidence": "inferred",
+  "position": [
+   150,
+   0
+  ],
+  "rotation": -90,
+  "terraces": [
+   {
+    "width": 62.5,
+    "depth": 43,
+    "height": 11,
+    "batter": 2.4
+   },
+   {
+    "width": 38,
+    "depth": 26,
+    "height": 5.5,
+    "batter": 1.2
+   },
+   {
+    "width": 20,
+    "depth": 14,
+    "height": 4.5,
+    "batter": 0.5
+   }
+  ]
+ }
+}

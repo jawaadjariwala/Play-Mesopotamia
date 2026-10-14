@@ -1,0 +1,80 @@
+import * as THREE from 'three/webgpu';
+import { SkyMesh } from 'three/addons/objects/SkyMesh.js';
+
+export interface SkyRig {
+  sun: THREE.DirectionalLight;
+  sunDirection: THREE.Vector3;
+}
+
+/**
+ * Physical sky, a matching sun, and image-based lighting baked from that same sky
+ * so shadows, sky colour and ambient light all agree.
+ */
+export function createSky(
+  renderer: THREE.WebGPURenderer,
+  scene: THREE.Scene,
+  elevationDeg: number,
+  azimuthDeg: number,
+  /** Brightness of the warm light bounced off sunlit earth into shadows. */
+  bounce = 1,
+): SkyRig {
+  const sunDirection = new THREE.Vector3().setFromSphericalCoords(
+    1,
+    THREE.MathUtils.degToRad(90 - elevationDeg),
+    THREE.MathUtils.degToRad(azimuthDeg),
+  );
+
+  const makeSky = () => {
+    const sky = new SkyMesh();
+    sky.scale.setScalar(4500);
+    // Southern Iraq: dusty, hazy, almost cloudless.
+    sky.turbidity.value = 9;
+    sky.rayleigh.value = 1.4;
+    sky.mieCoefficient.value = 0.006;
+    sky.mieDirectionalG.value = 0.82;
+    sky.cloudCoverage.value = 0.12;
+    sky.cloudDensity.value = 0.25;
+    sky.sunPosition.value.copy(sunDirection);
+    return sky;
+  };
+
+  scene.add(makeSky());
+
+  // Bake the sky into an environment map for ambient light and reflections.
+  const envScene = new THREE.Scene();
+  const envSky = makeSky();
+  envSky.showSunDisc.value = 0;
+  // Dustier, whiter sky for the lighting only, so shade reads warm-grey rather than blue.
+  envSky.rayleigh.value = 0.55;
+  envSky.turbidity.value = 12;
+  envScene.add(envSky);
+  // Without this the lower half of the environment is sky-blue and every shadow turns cold.
+  // Sunlit mud and dust throw warm light back up into streets and courtyards.
+  const groundBounce = new THREE.Mesh(
+    new THREE.CircleGeometry(5000, 32).rotateX(-Math.PI / 2),
+    new THREE.MeshBasicNodeMaterial({ color: new THREE.Color(0.62, 0.45, 0.3).multiplyScalar(bounce) }),
+  );
+  groundBounce.position.y = -5;
+  envScene.add(groundBounce);
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  scene.environment = pmrem.fromScene(envScene, 0.02, 0.1, 10000).texture;
+  scene.environmentIntensity = 0.55;
+
+  const sun = new THREE.DirectionalLight(0xfff1dc, 3.2);
+  sun.position.copy(sunDirection).multiplyScalar(120);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(4096, 4096);
+  const s = sun.shadow.camera;
+  s.left = -45;
+  s.right = 45;
+  s.top = 45;
+  s.bottom = -45;
+  s.near = 1;
+  s.far = 300;
+  sun.shadow.bias = -0.0004;
+  sun.shadow.normalBias = 0.03;
+  sun.shadow.radius = 3;
+  scene.add(sun, sun.target);
+
+  return { sun, sunDirection };
+}

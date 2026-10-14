@@ -20,13 +20,28 @@ Some things you'll be able to do:
 
 ## Status
 
-Early planning. See [PLAN.md](PLAN.md) for the design and roadmap.
+Phase 0 (look-dev). A test street in Ur with a courtyard house and the
+ziggurat on the horizon, generated from layout data. See [PLAN.md](PLAN.md)
+for the design and roadmap.
+
+Play the latest build: https://jawaadjariwala.github.io/Play-Mesopotamia/
+
+## Running it
+
+```
+npm install
+npm run dev          # http://localhost:5173
+node scripts/shoot.mjs   # headless check: fps, errors, screenshots (dev server running)
+```
+
+Camera presets: `?view=street`, `?view=courtyard`, `?view=aerial`. Lighting can
+be tuned from the URL too, for example `?exp=0.9&sun=5&env=0.3&bounce=8&tm=aces`.
 
 ## Tech
 
-Three.js (WebGPU renderer with automatic WebGL 2 fallback), React Three Fiber,
-Rapier physics, Ink for dialogue, Vite and TypeScript. Static hosting, no
-server needed to play.
+Three.js (WebGPU renderer with automatic WebGL 2 fallback, TSL shaders and
+post-processing), Vite and TypeScript, with Rapier physics and Ink dialogue
+coming in Phase 1. Static hosting on GitHub Pages, no server needed to play.
 
 ## Historical sources
 
@@ -38,3 +53,6 @@ Literature. Where the evidence runs out and the game has to guess, it says so.
 ## License
 
 Code: MIT. Historical content and art: to be decided before the first release.
+
+Textures from [Poly Haven](https://polyhaven.com) (CC0): Clay Plaster, Brown
+Brick 02, Dirt Floor, Clay Block Wall.
