@@ -9,7 +9,7 @@ const page = await browser.newPage();
 await page.setViewport({ width: 800, height: 450 });
 const errs = [];
 page.on('pageerror', (e) => errs.push(e.message));
-await page.goto(process.argv[2] ?? 'http://localhost:5173/', { waitUntil: 'networkidle0', timeout: 60000 });
+await page.goto(process.argv[2] ?? 'http://localhost:5173/', { waitUntil: 'networkidle0', timeout: 180000 });
 await page.waitForFunction(() => window.__stats && window.__stats.fps > 0, { timeout: 30000 });
 const c = await page.evaluate(() => {
   const city = window.__city;

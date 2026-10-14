@@ -338,6 +338,7 @@ Exit: a screenshot people mistake for a render, at measured fps.
 - [ ] Trace one block of Woolley's residential quarter plan into JSON and swap it in
 - [ ] City generator v1: stairs, drains, rounded corners and jambs
 - [ ] Touch controls for phones and tablets
+- [ ] Load Rapier's WASM as its own file instead of inlined (the JS bundle is 1.9 MB gzipped, mostly physics)
 - [ ] Interaction prompts, inspect view, codex with 10 entries
 - [ ] Two characters with Ink dialogue (a homeowner, Ea-nasir)
 - [ ] Royal Game of Ur, fully playable against a simple AI
