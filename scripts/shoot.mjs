@@ -21,7 +21,7 @@ const browser = await puppeteer.launch({
 
 for (const view of views) {
   const page = await browser.newPage();
-  await page.setViewport({ width: 960, height: 540 });
+  await page.setViewport({ width: Number(process.env.W ?? 960), height: Number(process.env.H ?? 540), deviceScaleFactor: Number(process.env.DPR ?? 1) });
   const problems = [];
   page.on('console', (m) => ['error', 'warning'].includes(m.type()) && problems.push(`${m.type()}: ${m.text()}`));
   page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
@@ -47,6 +47,8 @@ for (const view of views) {
     console.log(`   sampled ${samples.length}s: fps min ${Math.min(...fps)} avg ${Math.round(fps.reduce((a, b) => a + b) / fps.length)}, worst frame ${Math.max(...samples.map((s) => s.worstMs))} ms, draws max ${Math.max(...samples.map((s) => s.drawCalls))}`);
   }
   const stats = await page.evaluate(() => window.__stats ?? null);
+  const cpu = await page.evaluate(() => window.__cpu ?? null);
+  if (cpu) console.log('   cpu ms:', JSON.stringify(cpu, (k, v) => (typeof v === 'number' ? +v.toFixed(2) : v)));
   const city = await page.evaluate(() => window.__city?.worst ?? null);
   if (city) console.log('   city worst ms:', JSON.stringify(city, (k, v) => (typeof v === 'number' ? +v.toFixed(1) : v)));
   const loading = await page.evaluate(() => document.getElementById('loading')?.textContent ?? null);

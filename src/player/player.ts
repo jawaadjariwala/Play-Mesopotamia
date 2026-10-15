@@ -4,8 +4,13 @@ import { RAPIER, type Physics } from '../engine/physics';
 const EYE_HEIGHT = 1.62;
 const CAPSULE_HALF = 0.55;
 const CAPSULE_RADIUS = 0.3;
-const WALK = 2.0; // m/s, an unhurried stroll
-const RUN = 4.6;
+const WALK = 1.7; // m/s, an unhurried stroll
+const RUN = 4.4;
+/** How quickly speed follows the keys (1/s): about a quarter second to get going or stop. */
+const ACCEL = 9;
+/** Metres per footstep, walking and running. */
+const STEP_WALK = 0.75;
+const STEP_RUN = 1.25;
 const LOOK_SPEED = 0.0022;
 
 /**
@@ -23,7 +28,9 @@ export class Player {
   private body: RAPIER.RigidBody;
   private collider: RAPIER.Collider;
   private controller: RAPIER.KinematicCharacterController;
-  private walked = 0;
+  private velocity = new THREE.Vector3();
+  private stepPhase = 0;
+  private eyeY = 0;
   /** When false the camera is posed from outside (screenshots, cutscenes) and input is ignored. */
   enabled = true;
 
@@ -66,6 +73,7 @@ export class Player {
     this.body.setTranslation({ x, y: CAPSULE_HALF + CAPSULE_RADIUS + 0.1, z }, true);
     this.velocityY = 0;
     this.grounded = false;
+    this.velocity.set(0, 0, 0);
     this.yaw = yaw;
     this.pitch = 0;
   }
@@ -83,8 +91,11 @@ export class Player {
 
     const forward = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
     const right = new THREE.Vector3(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
-    const move = forward.multiplyScalar(fwd).add(right.multiplyScalar(side));
-    if (move.lengthSq() > 0) move.normalize().multiplyScalar(speed * dt);
+    const wish = forward.clone().multiplyScalar(fwd).add(right.clone().multiplyScalar(side));
+    if (wish.lengthSq() > 0) wish.normalize().multiplyScalar(speed);
+    // Ease toward the wanted velocity instead of snapping to it.
+    this.velocity.lerp(wish, 1 - Math.exp(-ACCEL * dt));
+    const move = this.velocity.clone().multiplyScalar(dt);
 
     // On the ground, only press down lightly and let snap-to-ground hold us there; feeding
     // full gravity into the contact pushes the capsule into the floor and the controller
@@ -99,11 +110,20 @@ export class Player {
     const next = { x: p.x + m.x, y: p.y + m.y, z: p.z + m.z };
     this.body.setNextKinematicTranslation(next);
     this.position.set(next.x, next.y, next.z);
-    this.walked += Math.hypot(m.x, m.z);
 
-    // Eye at head height with a gentle step bob.
-    const bob = Math.sin(this.walked * 3.6) * 0.025 * Math.min(1, move.length() / (WALK * dt + 1e-6));
-    this.camera.position.set(next.x, next.y - (CAPSULE_HALF + CAPSULE_RADIUS) + EYE_HEIGHT + bob, next.z);
+    // Footsteps: one soft dip per step and a slight sway per stride, both fading in with speed.
+    const moved = Math.hypot(m.x, m.z);
+    const speedNow = dt > 0 ? moved / dt : 0;
+    const running = speedNow > (WALK + RUN) / 2;
+    this.stepPhase += moved / (running ? STEP_RUN : STEP_WALK);
+    const amount = Math.min(1, speedNow / WALK);
+    const dip = (running ? 0.045 : 0.022) * amount * (1 - Math.cos(this.stepPhase * Math.PI * 2)) * 0.5;
+    const sway = (running ? 0.02 : 0.012) * amount * Math.sin(this.stepPhase * Math.PI);
+
+    // Smooth the eye height so steps and thresholds don't jolt the view.
+    const targetEye = next.y - (CAPSULE_HALF + CAPSULE_RADIUS) + EYE_HEIGHT;
+    this.eyeY = dt === 0 || Math.abs(targetEye - this.eyeY) > 1 ? targetEye : THREE.MathUtils.lerp(this.eyeY, targetEye, 1 - Math.exp(-14 * dt));
+    this.camera.position.set(next.x + right.x * sway, this.eyeY - dip, next.z + right.z * sway);
     this.camera.rotation.set(this.pitch, this.yaw, 0, 'YXZ');
   }
 }

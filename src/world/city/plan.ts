@@ -54,3 +54,27 @@ export function distanceToRect(x: number, z: number, r: Rect): number {
   const dz = Math.max(r[1] - z, 0, z - r[3]);
   return Math.hypot(dx, dz);
 }
+
+/** Is this point on water (river, canal, harbours, channels)? Used to keep props off it. */
+export function onWater(x: number, z: number, margin = 0, p: CityPlan = plan): boolean {
+  const r = p.water.river;
+  if (Math.abs(x - r.x) < r.width / 2 + margin) return true;
+  for (const h of [...p.water.harbours, ...p.water.channels]) {
+    const [x0, z0, x1, z1] = h.rect;
+    if (x > x0 - margin && x < x1 + margin && z > z0 - margin && z < z1 + margin) return true;
+  }
+  const c = p.water.canal;
+  const deg = (Math.atan2(z / (p.wall.radiusZ + c.offset), x / (p.wall.radiusX + c.offset)) * 180) / Math.PI;
+  if (deg >= c.fromDeg && deg <= c.toDeg) {
+    // Distance from the canal centre line, measured in the ellipse's normalised radius.
+    const k = Math.hypot(x / (p.wall.radiusX + c.offset), z / (p.wall.radiusZ + c.offset));
+    const halfWidth = (c.width / 2 + margin) / Math.min(p.wall.radiusX + c.offset, p.wall.radiusZ + c.offset);
+    if (Math.abs(k - 1) < halfWidth) return true;
+  }
+  return false;
+}
+
+/** Inside the city wall's footprint, rampart included. */
+export function insideWall(x: number, z: number, margin = 0, p: CityPlan = plan): boolean {
+  return insideEllipse(x, z, p.wall.radiusX + p.wall.baseWidth / 2 + margin, p.wall.radiusZ + p.wall.baseWidth / 2 + margin);
+}

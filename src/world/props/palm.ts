@@ -176,7 +176,12 @@ export interface Palms {
  * Every grove has a cheap far version (always there) and a detailed near version
  * (shown, with shadows, only when the player is close). Geometry is shared across groves.
  */
-export function buildPalms(groves: GroveSpec[], mats: Materials, seed = 7): Palms {
+export function buildPalms(
+  groves: GroveSpec[],
+  mats: Materials,
+  exclude?: (x: number, z: number) => boolean,
+  seed = 7,
+): Palms {
   const rand = mulberry32(seed);
   const geoms = (shapes: PalmShape[]) => shapes.map((s) => [trunkGeometry(s), frondGeometry(s)] as const);
   const nearGeoms = geoms(NEAR_SHAPES);
@@ -211,6 +216,8 @@ export function buildPalms(groves: GroveSpec[], mats: Materials, seed = 7): Palm
       const r = grove.radius * Math.sqrt(rand());
       const a = rand() * Math.PI * 2;
       const pos = new THREE.Vector3(grove.center[0] + Math.cos(a) * r, 0, grove.center[1] + Math.sin(a) * r);
+      // Palms grow on the banks, not in the water or on the city wall.
+      if (exclude?.(pos.x, pos.z)) continue;
       const rot = new THREE.Quaternion().setFromAxisAngle(UP, rand() * Math.PI * 2);
       const sc = 0.8 + rand() * 0.45;
       matrices.push(new THREE.Matrix4().compose(pos, rot, new THREE.Vector3(sc, sc, sc)));

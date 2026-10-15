@@ -21,7 +21,7 @@ Some things you'll be able to do:
 ## Status
 
 Phase 1. The whole of Ur at its real size, about 1.2 km by 0.8 km inside its
-wall, with 2,567 generated courtyard houses, the temenos and ziggurat, the
+wall, with 2,186 generated courtyard houses, the temenos and ziggurat, the
 harbours and the river. Walk it in first person; the city builds itself around
 you as you go. See [PLAN.md](PLAN.md) for the design and roadmap.
 

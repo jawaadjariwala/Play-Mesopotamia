@@ -42,9 +42,19 @@ export function buildLandmarks(plan: CityPlan, mats: Materials, waterMat: THREE.
   for (let k = 0; k < segments; k++) {
     const d0 = -180 + (360 * k) / segments;
     const d1 = -180 + (360 * (k + 1)) / segments;
-    if (inGate((d0 + d1) / 2) || inWater((d0 + d1) / 2)) continue;
     const a = at(d0);
     const b = at(d1);
+    if (inGate((d0 + d1) / 2) || inWater((d0 + d1) / 2)) {
+      // No rampart here, but still no way out: a barrier along the wall line.
+      const along = b.p.clone().sub(a.p);
+      const mid = a.p.clone().add(b.p).multiplyScalar(0.5);
+      colliders.push({
+        center: new THREE.Vector3(mid.x, 4, mid.y),
+        halfExtents: new THREE.Vector3(along.length() / 2 + 0.5, 4, 1.5),
+        rotationY: -Math.atan2(along.y, along.x),
+      });
+      continue;
+    }
     const ring = (s: number, y: number, which: typeof a) => new THREE.Vector3(which.p.x + which.n.x * s, y, which.p.y + which.n.y * s);
     // Angle increases counter-clockwise seen from below, so "inside" is -n: bottom = [a_in, b_in, b_out, a_out].
     rampart.prism(

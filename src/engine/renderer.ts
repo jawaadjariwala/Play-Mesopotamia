@@ -14,8 +14,8 @@ import { ao } from 'three/addons/tsl/display/GTAONode.js';
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 import { fxaa } from 'three/addons/tsl/display/FXAANode.js';
 
-export async function createRenderer(): Promise<THREE.WebGPURenderer> {
-  const renderer = new THREE.WebGPURenderer({ antialias: false });
+export async function createRenderer(trackTimestamp = false): Promise<THREE.WebGPURenderer> {
+  const renderer = new THREE.WebGPURenderer({ antialias: false, trackTimestamp });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.toneMapping = THREE.AgXToneMapping;
@@ -39,7 +39,15 @@ export function createPipeline(
   renderer: THREE.WebGPURenderer,
   scene: THREE.Scene,
   camera: THREE.PerspectiveCamera,
+  options: { ao: boolean } = { ao: true },
 ): THREE.RenderPipeline {
+  const pipeline = new THREE.RenderPipeline(renderer);
+  pipeline.outputColorTransform = false;
+  if (!options.ao) {
+    const color = pass(scene, camera).getTextureNode();
+    pipeline.outputNode = fxaa(renderOutput(color.add(bloom(color, 0.05, 0.25, 1.4))));
+    return pipeline;
+  }
   const prePass = pass(scene, camera);
   prePass.transparent = false;
   prePass.setMRT(mrt({ output: directionToColor(normalView) }));
@@ -52,10 +60,8 @@ export function createPipeline(
   scenePass.contextNode = builtinAOContext(aoPass.getTextureNode().sample(screenUV).r);
 
   const color = scenePass.getTextureNode();
-  const glow = bloom(color, 0.12, 0.35, 0.92);
+  const glow = bloom(color, 0.05, 0.25, 1.4);
 
-  const pipeline = new THREE.RenderPipeline(renderer);
-  pipeline.outputColorTransform = false;
   pipeline.outputNode = fxaa(renderOutput(color.add(glow)));
   return pipeline;
 }

@@ -83,7 +83,14 @@ export function generateBlocks(p: CityPlan = plan): Block[] {
         grid.line(0, i + 1) - grid.width(0, i + 1) / 2,
         grid.line(1, j + 1) - grid.width(1, j + 1) / 2,
       ];
-      const plots = splitBlock(rect, mulberry32(Math.floor(hash2(i, j) * 1e9))).filter((pl) => buildable(pl.rect, p));
+      // Each block sits back from the street by its own amount on every side, so street
+      // widths vary and the frontage jogs from block to block instead of running ruler-straight.
+      const r = mulberry32(Math.floor(hash2(i, j) * 1e9));
+      rect[0] += r() * 1.6;
+      rect[1] += r() * 1.6;
+      rect[2] -= r() * 1.6;
+      rect[3] -= r() * 1.6;
+      const plots = splitBlock(rect, r).filter((pl) => buildable(pl.rect, p));
       if (plots.length > 0) blocks.push({ id: blocks.length, i, j, rect, plots });
     }
   }
@@ -112,13 +119,22 @@ function splitBlock(r: Rect, rand: () => number): Plot[] {
   const l1 = longIsX ? x1 : z1;
   for (const row of rows) {
     let a = l0;
+    let first = true;
     while (l1 - a >= MIN_PLOT) {
       let len = MIN_PLOT + rand() * (MAX_PLOT - MIN_PLOT);
       if (l1 - a - len < MIN_PLOT) len = l1 - a; // absorb the leftover
       const b = a + len;
-      const rect: Rect = longIsX ? [a, row.lo, b, row.hi] : [row.lo, a, row.hi, b];
-      plots.push({ rect, street: row.street, seed: Math.floor(rand() * 1e9) });
+      const last = l1 - b < MIN_PLOT;
+      // A corner plot left open now and then: a small square where streets meet.
+      const square = (first || last) && rand() < 0.07;
+      if (!square) {
+        const rect: Rect = longIsX ? [a, row.lo, b, row.hi] : [row.lo, a, row.hi, b];
+        plots.push({ rect, street: row.street, seed: Math.floor(rand() * 1e9) });
+      }
       a = b;
+      first = false;
+      // In deep blocks, a narrow blind alley sometimes runs in between two houses.
+      if (rows.length === 2 && !last && rand() < 0.12) a += 1.8;
     }
   }
   return plots;
@@ -144,7 +160,8 @@ export function houseForPlot(plot: Plot, id: string): House {
   const W = x1 - x0;
   const D = z1 - z0;
   const t = T / 2;
-  const twoStorey = rand() < 0.25;
+  // Whether houses at Ur had upper floors is debated; most are kept to one storey.
+  const twoStorey = rand() < 0.12;
   const wallHeight = twoStorey ? 6.3 + rand() * 0.4 : 3.7 + rand() * 0.6;
   const roofHeight = wallHeight - 0.4;
   const doorH = 1.9 + rand() * 0.25;

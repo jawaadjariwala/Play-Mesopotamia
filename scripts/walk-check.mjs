@@ -33,7 +33,30 @@ await page.evaluate(async () => {
   pl.teleport(window.__stairFoot.x, window.__stairFoot.z, window.__stairFoot.yaw);
 
 });
-await page.keyboard.down('ShiftLeft'); await page.keyboard.down('KeyW'); await new Promise((r) => setTimeout(r, 12000)); await page.keyboard.up('KeyW'); await page.keyboard.up('ShiftLeft');
+await page.keyboard.down('ShiftLeft'); await page.keyboard.down('KeyW'); await new Promise((r) => setTimeout(r, 16000)); await page.keyboard.up('KeyW'); await page.keyboard.up('ShiftLeft');
 console.log('after running up the ziggurat stair', await pos(), '(expect y near 11.9)');
+// Try to leave the city: run straight at the wall from just inside it at every gate and
+// everywhere water passes through (where the rampart is open). Nobody should get out.
+const RX = 400, RZ = 600, HALF_BASE = 9;
+const angles = [-95, 0, 85, 180, 171, 174, 177, -98, -93, -88];
+let escapes = 0;
+for (const deg of angles) {
+  const a = (deg * Math.PI) / 180;
+  const wx = RX * Math.cos(a), wz = RZ * Math.sin(a);
+  const n = [wx / (RX * RX), wz / (RZ * RZ)];
+  const len = Math.hypot(...n);
+  const [nx, nz] = [n[0] / len, n[1] / len];
+  const sx = wx - nx * (HALF_BASE + 6), sz = wz - nz * (HALF_BASE + 6);
+  const yaw = Math.atan2(-nx, -nz); // face outward
+  await page.evaluate((x, z, yaw) => window.__player.teleport(x, z, yaw), sx, sz, yaw);
+  await page.keyboard.down('ShiftLeft'); await page.keyboard.down('KeyW');
+  await new Promise((r) => setTimeout(r, 5000));
+  await page.keyboard.up('KeyW'); await page.keyboard.up('ShiftLeft');
+  const p = await pos();
+  const outside = (p[0] / RX) ** 2 + (p[2] / RZ) ** 2 > 1;
+  if (outside) escapes++;
+  console.log(`escape attempt at ${deg} deg:`, p, outside ? 'GOT OUT' : 'stayed in');
+}
+console.log(escapes === 0 ? 'wall holds everywhere tested' : `${escapes} ESCAPES`);
 console.log('errors:', errs.slice(0, 3));
 await browser.close();

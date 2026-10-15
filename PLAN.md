@@ -209,6 +209,21 @@ Rules
                GitHub Pages (code + assets)
 ```
 
+## What the evidence says (and what the game won't invent)
+
+- **Streets:** narrow, winding lanes between blank house walls, exactly as in
+  Woolley's residential quarters. The game keeps them narrow.
+- **Houses:** rooms around a central court, plain outside. Woolley thought
+  most had two storeys; that's been doubted, so most generated houses have one.
+- **Baths:** no public baths are known at Ur (those are Roman, or the Indus
+  "Great Bath"). Houses had small washrooms and toilets over drainage pits.
+- **Markets:** no market square has been excavated. Trade centred on the
+  harbours; a merchant quarter (karum) outside the walls is a hypothesis.
+- **Water:** the river, canals and harbours. Public wells at Ur aren't
+  confirmed, so the game doesn't add any.
+- **City centre:** the temenos, the walled sacred precinct around the ziggurat
+  with temples, storerooms and the gipar.
+
 ## The open city
 
 **Layout.** Two layers. A hand-authored macro plan (`content/city/ur.json`)
@@ -252,7 +267,8 @@ same worst frame as standing still.
 
 **Measured** (headless Chrome, M-series Mac, 960x540, a smoke test): 60 fps
 while walking through the city, worst frame 22 ms, about 85 to 350 draw calls
-and 0.2M to 1.1M triangles per frame depending on the view, 2,567 houses.
+and 0.2M to 1.1M triangles per frame depending on the view, 2,186 houses.
+Laptop, Chrome: 35 to 45 fps before the quality governor and baked noise.
 
 ## Content model
 
@@ -332,9 +348,19 @@ Exit: a screenshot people mistake for a render, at measured fps.
 - [x] First-person walking with Rapier: collisions, steps, the ziggurat stair is climbable
 - [x] Adaptive resolution and a shadow map that follows the player
 - [x] Per-house plaster tones
+- [x] Streets that jog: blocks and frontages set back by varying amounts, small squares at some corners, blind alleys
+- [x] Mostly single-storey houses (upper floors at Ur are debated)
+- [x] Wall sealed at gates and water openings; walk check tries to escape at each
+- [x] Smoother walking: eased acceleration, footstep rhythm, smoothed eye height
+- [x] Softer sun: less haze glow, visible sky darkened so it doesn't clip to white, gentler bloom
+- [x] Quality governor: 1.5x render scale on retina, then less resolution, then AO off, as needed
+- [x] Weathering noise baked into a texture instead of computed per pixel
 - [ ] Street life on the walls: more doors, benches, drains, rubbish, steps up to raised doorways
-- [ ] Less grid-like streets: bends and dead-end alleys
-- [ ] Temples and shrines in the temenos, the gipar, a market street
+- [ ] Bends in the longer streets
+- [ ] Occasional 40 ms frame while streaming (headless); find the GPU-side cause
+- [ ] Temples in the temenos (the city's centre): Ningal's temple and the gipar, E-nun-mah, the E-dublal-mah gate
+- [ ] Harbour quays as the trading area (no market square has been excavated at Ur; trade centred on the harbours)
+- [ ] Household details the excavations do show: washrooms and toilets over drainage pits, household chapels
 - [ ] Trace one block of Woolley's residential quarter plan into JSON and swap it in
 - [ ] City generator v1: stairs, drains, rounded corners and jambs
 - [ ] Touch controls for phones and tablets

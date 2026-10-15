@@ -1,4 +1,5 @@
 import * as THREE from 'three/webgpu';
+import { createNoiseTexture } from '../engine/noiseTexture';
 import {
   attribute,
   color,
@@ -8,7 +9,9 @@ import {
   instanceIndex,
   luminance,
   mix,
-  mx_noise_float,
+  normalWorld,
+  step,
+  vec2,
   positionLocal,
   positionWorld,
   sin,
@@ -20,6 +23,21 @@ import {
 } from 'three/tsl';
 
 const BASE = import.meta.env.BASE_URL;
+
+/**
+ * Weathering noise read from a baked texture in world space: walls use (x + z, y),
+ * flat surfaces use (x, z). `period` is the world size of one tile in metres
+ * (features are about period / 8); a second value stretches it vertically.
+ */
+const noiseTex = createNoiseTexture();
+const worldCoord = mix(
+  vec2(positionWorld.x.add(positionWorld.z), positionWorld.y),
+  positionWorld.xz,
+  step(0.7, normalWorld.y.abs()),
+);
+function worldNoise(period: number, periodY = period) {
+  return texture(noiseTex, worldCoord.div(vec2(period, periodY))).r;
+}
 const loader = new THREE.TextureLoader();
 
 /** Poly Haven texture set: _diff (sRGB colour), _nor (OpenGL normal), _arm (AO, roughness, metal). */
@@ -66,8 +84,8 @@ function surfaceFrom({ diff, nor, arm }: Awaited<ReturnType<typeof loadSet>>, op
     metalness: 0,
   });
 
-  const noise = mx_noise_float(positionWorld.mul(0.18)).mul(0.5).add(0.5);
-  const fine = mx_noise_float(positionWorld.mul(1.3)).mul(0.5).add(0.5);
+  const noise = worldNoise(44);
+  const fine = worldNoise(6.4);
   const variation = mix(float(1 - opts.variation), float(1 + opts.variation * 0.4), noise.mul(0.75).add(fine.mul(0.25)));
   const grime = smoothstep(0.0, 0.7, positionWorld.y).oneMinus().mul(opts.groundGrime);
   const dust = vec3(0.42, 0.33, 0.24);
@@ -79,7 +97,7 @@ function surfaceFrom({ diff, nor, arm }: Awaited<ReturnType<typeof loadSet>>, op
   if (opts.reveal) {
     const r = opts.reveal;
     // Plaster flakes off in blotches, more of it low down where water and passing feet wear it.
-    const blotches = mx_noise_float(positionWorld.mul(0.45)).add(mx_noise_float(positionWorld.mul(1.9)).mul(0.3));
+    const blotches = worldNoise(18).mul(2).sub(1).add(worldNoise(4.2).mul(2).sub(1).mul(0.3));
     const wear = blotches.add(smoothstep(0.0, 1.8, positionWorld.y).oneMinus().mul(0.3));
     const mask = smoothstep(r.threshold, r.threshold + 0.04, wear);
     const rim = smoothstep(r.threshold - 0.07, r.threshold, wear).sub(mask);
@@ -88,7 +106,7 @@ function surfaceFrom({ diff, nor, arm }: Awaited<ReturnType<typeof loadSet>>, op
   }
   if (opts.streaks) {
     // Noise stretched vertically reads as runs; strongest just under the wall tops.
-    const runs = mx_noise_float(vec3(positionWorld.x.mul(2.6), positionWorld.y.mul(0.12), positionWorld.z.mul(2.6)));
+    const runs = worldNoise(3, 66).mul(2).sub(1);
     const fromTop = smoothstep(1.4, 3.4, positionWorld.y);
     const streak = smoothstep(0.15, 0.6, runs).mul(fromTop).mul(opts.streaks);
     base = base.mul(streak.mul(0.32).oneMinus());

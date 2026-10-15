@@ -1,7 +1,9 @@
 import * as THREE from 'three/webgpu';
 import { SkyMesh } from 'three/addons/objects/SkyMesh.js';
+import { vec4 } from 'three/tsl';
 
 const SHADOW_EXTENT = 38;
+const SKY_BRIGHTNESS = 0.5;
 
 export interface SkyRig {
   sun: THREE.DirectionalLight;
@@ -29,18 +31,24 @@ export function createSky(
   const makeSky = () => {
     const sky = new SkyMesh();
     sky.scale.setScalar(4500);
-    // Southern Iraq: dusty, hazy, almost cloudless.
-    sky.turbidity.value = 9;
-    sky.rayleigh.value = 1.4;
-    sky.mieCoefficient.value = 0.006;
-    sky.mieDirectionalG.value = 0.82;
+    // Southern Iraq: dusty and almost cloudless. Mie scattering (the bright halo around
+    // the sun) is kept modest; strong values wash the whole sun side of the sky out to white.
+    sky.turbidity.value = 6;
+    sky.rayleigh.value = 1.8;
+    sky.mieCoefficient.value = 0.002;
+    sky.mieDirectionalG.value = 0.72;
     sky.cloudCoverage.value = 0.12;
     sky.cloudDensity.value = 0.25;
     sky.sunPosition.value.copy(sunDirection);
     return sky;
   };
 
-  scene.add(makeSky());
+  // The physical sky is far brighter than the sunlit city, so tone mapping clips the sun
+  // side of it to white. Scale only what you see; lighting still comes from the full sky.
+  const visible = makeSky();
+  const skyMat = visible.material as THREE.NodeMaterial;
+  skyMat.colorNode = (skyMat.colorNode as ReturnType<typeof vec4>).mul(vec4(SKY_BRIGHTNESS, SKY_BRIGHTNESS, SKY_BRIGHTNESS, 1));
+  scene.add(visible);
 
   // Bake the sky into an environment map for ambient light and reflections.
   const envScene = new THREE.Scene();
