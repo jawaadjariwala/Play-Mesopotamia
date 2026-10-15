@@ -18,6 +18,10 @@ export class StatsOverlay {
   private last = performance.now();
   private worstMs = 0;
   readonly current: FrameStats;
+  set visible(v: boolean) {
+    this.el.style.display = v ? '' : 'none';
+  }
+
   /** Extra lines for the overlay (render scale, streaming). */
   extra: () => string = () => '';
 

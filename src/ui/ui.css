@@ -1,0 +1,253 @@
+/*
+ * Play Mesopotamia UI. The look borrows from the Standard of Ur, found in the city's royal
+ * cemetery: shell figures set on lapis lazuli, framed in black bitumen. One typeface,
+ * Atkinson Hyperlegible, chosen for young and low-vision readers; the only display
+ * element is the city's name in cuneiform.
+ */
+:root {
+  --lapis: #24407f;
+  --lapis-deep: #162a57;
+  --shell: #f2ece0;
+  --shell-dim: rgba(242, 236, 224, 0.72);
+  --bitumen: #211c18;
+  --carnelian: #b8472f;
+  --gold: #c9a44c;
+  --water: #8fb0d6;
+  --ui-font: 'Atkinson Hyperlegible', system-ui, sans-serif;
+}
+
+#ui {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  font: 400 18px/1.5 var(--ui-font);
+  color: var(--shell);
+}
+#ui button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+#ui :focus-visible {
+  outline: 3px solid var(--carnelian);
+  outline-offset: 2px;
+}
+
+/* The inlay panel: lapis, a bitumen edge, and a fine shell line just inside it. */
+.panel {
+  pointer-events: auto;
+  position: absolute;
+  left: max(16px, 6vw);
+  top: 50%;
+  transform: translateY(-50%);
+  width: min(430px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 28px 30px 26px;
+  background: rgba(36, 64, 127, 0.95);
+  border: 3px solid var(--bitumen);
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px rgba(242, 236, 224, 0.32), 0 18px 50px rgba(22, 42, 87, 0.45);
+}
+.panel[hidden] {
+  display: none;
+}
+.glyph {
+  font-family: 'Noto Sans Cuneiform', serif;
+  font-size: 4.6rem;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  margin: 0 0 14px;
+}
+.glyph-gloss {
+  margin: 0 0 18px;
+  color: var(--shell-dim);
+  font-size: 0.95rem;
+}
+.panel h1 {
+  font-size: 2.1rem;
+  line-height: 1.15;
+  font-weight: 700;
+  margin: 0 0 12px;
+}
+.panel h2 {
+  font-size: 1.6rem;
+  margin: 0 0 18px;
+}
+.panel h3 {
+  font-size: 1.1rem;
+  margin: 26px 0 8px;
+  color: var(--shell-dim);
+  font-weight: 700;
+}
+.panel p {
+  margin: 0 0 18px;
+  max-width: 36em;
+}
+.primary {
+  display: block;
+  width: 100%;
+  min-height: 54px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--shell);
+  color: var(--bitumen) !important;
+  font-weight: 700 !important;
+  font-size: 1.15rem !important;
+  margin: 6px 0 18px;
+}
+.primary:hover {
+  background: #fff;
+}
+.controls {
+  color: var(--shell-dim);
+  font-size: 0.98rem;
+}
+.panel details {
+  border-top: 1px solid rgba(242, 236, 224, 0.25);
+  padding-top: 12px;
+  font-size: 0.95rem;
+}
+.panel summary {
+  cursor: pointer;
+  min-height: 32px;
+}
+.panel details p {
+  margin: 10px 0 0;
+  color: var(--shell-dim);
+}
+
+.places {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.places button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  min-height: 52px;
+  padding: 8px 4px;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid rgba(242, 236, 224, 0.2);
+}
+.places button:hover {
+  background: rgba(22, 42, 87, 0.55);
+}
+.places strong {
+  display: block;
+  font-weight: 700;
+}
+.places span {
+  display: block;
+  color: var(--shell-dim);
+  font-size: 0.92rem;
+}
+
+/* Walking HUD: a map, a menu button, and on touch screens a stick and a run button. */
+#map {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  width: 132px;
+  height: 188px;
+  border: 3px solid var(--bitumen);
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px rgba(242, 236, 224, 0.32);
+}
+#menu-btn {
+  pointer-events: auto;
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 52px;
+  height: 52px;
+  border: 3px solid var(--bitumen);
+  border-radius: 6px;
+  background: rgba(36, 64, 127, 0.92);
+  display: grid;
+  place-items: center;
+}
+#menu-btn i,
+#menu-btn i::before,
+#menu-btn i::after {
+  display: block;
+  width: 22px;
+  height: 3px;
+  background: var(--shell);
+  border-radius: 2px;
+  position: relative;
+  content: '';
+}
+#menu-btn i::before {
+  position: absolute;
+  top: -7px;
+}
+#menu-btn i::after {
+  position: absolute;
+  top: 7px;
+}
+#stick {
+  pointer-events: auto;
+  touch-action: none;
+  position: absolute;
+  left: 24px;
+  bottom: 24px;
+  width: 132px;
+  height: 132px;
+  border-radius: 50%;
+  background: rgba(22, 42, 87, 0.45);
+  border: 3px solid rgba(33, 28, 24, 0.7);
+}
+#stick .knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 58px;
+  height: 58px;
+  margin: -29px 0 0 -29px;
+  border-radius: 50%;
+  background: var(--shell);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+#run-btn {
+  pointer-events: auto;
+  touch-action: none;
+  position: absolute;
+  left: 172px;
+  bottom: 40px;
+  min-width: 76px;
+  height: 56px;
+  border-radius: 28px;
+  border: 3px solid var(--bitumen);
+  background: rgba(36, 64, 127, 0.92);
+  font-weight: 700;
+}
+#run-btn[aria-pressed='true'] {
+  background: var(--gold);
+  color: var(--bitumen);
+}
+.hud[hidden] {
+  display: none !important;
+}
+
+@media (max-width: 600px) {
+  .panel {
+    top: auto;
+    bottom: 16px;
+    transform: none;
+    padding: 22px 20px;
+  }
+  .glyph {
+    font-size: 3.4rem;
+  }
+  .panel h1 {
+    font-size: 1.7rem;
+  }
+  #map {
+    width: 104px;
+    height: 148px;
+  }
+}

@@ -11,6 +11,7 @@ import { buildLandmarks, canalBridges } from './world/landmarks';
 import { CityStreamer } from './world/city/streamer';
 import { StreetGrid } from './world/city/layout';
 import { insideWall, insideWallShape, onWater, plan } from './world/city/plan';
+import { GameUI, type Place } from './ui/ui';
 import { buildPalms, CityPalms, FOLIAGE_LAYER } from './world/props/palm';
 import { cityPalmPoints } from './world/city/greenery';
 
@@ -107,22 +108,34 @@ async function main() {
   const player = new Player(physics, camera, renderer.domElement, spawn, spawnYaw);
 
   const pose = q.has('view') ? viewPose(q.get('view')!, spawn, spawnYaw, sky.sunDirection) : undefined;
+  player.enabled = false;
+  // Behind the start screen: a slow drift beside the canal bridge nearest the spawn point.
+  const introBridge = canalBridges(plan).reduce((a, b) => (a.center.distanceTo(new THREE.Vector2(sx, sz)) < b.center.distanceTo(new THREE.Vector2(sx, sz)) ? a : b));
+  const introCentre = new THREE.Vector3(introBridge.center.x, 0, introBridge.center.y);
+  const introPose = (t: number) => {
+    const a = 0.6 + t * 0.018;
+    camera.position.set(introCentre.x + Math.cos(a) * 26, 3.2, introCentre.z + Math.sin(a) * 26);
+    camera.lookAt(introCentre.x, 1.5, introCentre.z);
+  };
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (pose) {
-    player.enabled = false;
     camera.position.copy(pose.pos);
     camera.lookAt(pose.look);
   } else {
-    player.update(0);
+    introPose(0);
   }
 
   loading.textContent = 'Building the houses around you…';
   await new Promise((r) => setTimeout(r));
   city.preload(camera.position.x, camera.position.z);
+  if (!pose) city.preload(sx, sz);
 
   // Two pipelines, with and without ambient occlusion; the quality governor picks one.
   const pipelines = { ao: createPipeline(renderer, scene, camera, { ao: true }), plain: createPipeline(renderer, scene, camera, { ao: false }) };
   let pipeline = q.has('noao') ? pipelines.plain : pipelines.ao;
   const stats = new StatsOverlay(renderer, isWebGPU(renderer) ? 'WebGPU' : 'WebGL 2 fallback');
+  // The performance overlay is for development: ?stats shows it (fixed views always do).
+  stats.visible = q.has('stats') || Boolean(pose);
   const quality = new QualityGovernor(renderer, (ao) => {
     pipeline = ao && !q.has('noao') ? pipelines.ao : pipelines.plain;
   });
@@ -151,11 +164,23 @@ async function main() {
   });
 
   loading.remove();
-  const hint = document.getElementById('hint')!;
-  if (!pose) hint.hidden = false;
-  document.addEventListener('pointerlockchange', () => {
-    hint.hidden = player.locked || Boolean(pose);
-  });
+
+  // Places to jump to from the menu.
+  const t = plan.temenos;
+  const gateX = t.rect[0] + (t.rect[2] - t.rect[0]) * t.gate.at;
+  const harbour = plan.water.harbours.find((h) => h.name === 'West Harbour')!;
+  const wallSpot = landmarks.wallTests.find((w) => w.kind === 'wall')!;
+  const bridgeStart = introBridge.center.clone().addScaledVector(introBridge.axis, -(introBridge.halfLength + 3));
+  const places: Place[] = [
+    { name: 'A residential street', hint: 'Where you started, among the courtyard houses.', x: sx, z: sz, yaw: spawnYaw },
+    { name: 'The ziggurat', hint: 'Climb the great stairway to the first terrace.', x: stairFoot.x, z: stairFoot.z, yaw: zy },
+    { name: 'The temple district', hint: 'The walled precinct of Nanna, the moon god.', x: gateX, z: t.rect[3] - 10, yaw: 0 },
+    { name: 'The canal', hint: 'Cross the canal that ran through the city.', x: bridgeStart.x, z: bridgeStart.y, yaw: Math.atan2(-introBridge.axis.x, -introBridge.axis.y) },
+    { name: 'The West Harbour', hint: 'Where boats from the Gulf brought copper and timber.', x: harbour.rect[2] + 6, z: (harbour.rect[1] + harbour.rect[3]) / 2, yaw: Math.PI / 2 },
+    { name: 'The city wall', hint: 'The mudbrick rampart around the whole city.', x: wallSpot.x, z: wallSpot.z, yaw: wallSpot.yaw },
+  ];
+  const ui = pose ? null : new GameUI(player, renderer.domElement, places, plan);
+  Object.assign(window as unknown as Record<string, unknown>, { __ui: ui });
 
   window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -194,6 +219,9 @@ async function main() {
 
     const cpu0 = performance.now();
     player.update(dt);
+    // On the start screen the camera drifts slowly beside the canal.
+    if (ui?.atStart && !reducedMotion) introPose(now / 1000);
+    ui?.update();
     if (pose && autopilot) camera.position.x += autopilot * dt;
     physics.world.step();
     const { x, z } = camera.position;

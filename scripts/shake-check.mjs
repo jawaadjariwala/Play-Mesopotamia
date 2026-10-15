@@ -9,6 +9,8 @@ try {
   await page.setViewport({ width: 960, height: 540 });
   await page.goto(process.argv[3] ?? 'http://localhost:5173/', { waitUntil: 'networkidle0', timeout: 180000 });
   await page.waitForFunction(() => window.__stats && window.__stats.fps > 0);
+// Press "Start walking" (scripts can't click it with a real gesture).
+await page.evaluate(() => window.__ui?.start());
   await page.evaluate(() => {
     window.__rec = []; let last = performance.now();
     const cam = window.__camera;

@@ -11,6 +11,8 @@ const errs = [];
 page.on('pageerror', (e) => errs.push(e.message));
 await page.goto(process.argv[2] ?? 'http://localhost:5173/', { waitUntil: 'networkidle0', timeout: 180000 });
 await page.waitForFunction(() => window.__stats && window.__stats.fps > 0, { timeout: 30000 });
+// Press "Start walking" (scripts can't click it with a real gesture).
+await page.evaluate(() => window.__ui?.start());
 const c = await page.evaluate(() => {
   const city = window.__city;
   const hidden = city.hidden.array.reduce((a, b) => a + b, 0);

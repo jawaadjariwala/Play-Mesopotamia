@@ -57,14 +57,9 @@ export class Player {
     window.addEventListener('keydown', (e) => this.keys.add(e.code));
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
     window.addEventListener('blur', () => this.keys.clear());
-    dom.addEventListener('click', () => {
-      // requestPointerLock rejects if the user presses Esc too quickly; that's harmless.
-      if (this.enabled && document.pointerLockElement !== dom) Promise.resolve(dom.requestPointerLock()).catch(() => {});
-    });
     document.addEventListener('mousemove', (e) => {
       if (document.pointerLockElement !== dom) return;
-      this.yaw -= e.movementX * LOOK_SPEED;
-      this.pitch = THREE.MathUtils.clamp(this.pitch - e.movementY * LOOK_SPEED, -1.35, 1.35);
+      this.look(e.movementX, e.movementY);
     });
   }
 
@@ -78,6 +73,27 @@ export class Player {
     this.pitch = 0;
   }
 
+  /** Analog movement from a touch joystick: x = strafe right, y = forward, each -1..1. */
+  readonly stick = { x: 0, y: 0 };
+  /** Touch "run" toggle. */
+  running = false;
+
+  /** Turn the view by a mouse or finger movement in pixels. */
+  look(dx: number, dy: number, sensitivity = 1) {
+    this.yaw -= dx * LOOK_SPEED * sensitivity;
+    this.pitch = THREE.MathUtils.clamp(this.pitch - dy * LOOK_SPEED * sensitivity, -1.35, 1.35);
+  }
+
+  /** Which way the player faces, radians (0 = north, -z). */
+  get heading() {
+    return this.yaw;
+  }
+
+  /** Lock the mouse for looking around (must be called from a click). */
+  lockPointer() {
+    Promise.resolve(this.dom.requestPointerLock()).catch(() => {});
+  }
+
   get locked() {
     return document.pointerLockElement === this.dom;
   }
@@ -85,14 +101,16 @@ export class Player {
   update(dt: number) {
     if (!this.enabled) return;
     const k = this.keys;
-    const fwd = (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0) - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0);
-    const side = (k.has('KeyD') || k.has('ArrowRight') ? 1 : 0) - (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0);
-    const speed = k.has('ShiftLeft') || k.has('ShiftRight') ? RUN : WALK;
+    const fwd = THREE.MathUtils.clamp((k.has('KeyW') || k.has('ArrowUp') ? 1 : 0) - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0) + this.stick.y, -1, 1);
+    const side = THREE.MathUtils.clamp((k.has('KeyD') || k.has('ArrowRight') ? 1 : 0) - (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0) + this.stick.x, -1, 1);
+    const speed = k.has('ShiftLeft') || k.has('ShiftRight') || this.running ? RUN : WALK;
+    // A joystick pushed halfway walks at half speed; keys are always full.
+    const push = Math.min(1, Math.hypot(fwd, side));
 
     const forward = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
     const right = new THREE.Vector3(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
     const wish = forward.clone().multiplyScalar(fwd).add(right.clone().multiplyScalar(side));
-    if (wish.lengthSq() > 0) wish.normalize().multiplyScalar(speed);
+    if (wish.lengthSq() > 0) wish.normalize().multiplyScalar(speed * push);
     // Ease toward the wanted velocity instead of snapping to it.
     this.velocity.lerp(wish, 1 - Math.exp(-ACCEL * dt));
     const move = this.velocity.clone().multiplyScalar(dt);

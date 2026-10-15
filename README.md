@@ -21,24 +21,37 @@ Some things you'll be able to do:
 ## Status
 
 Phase 1. The whole of Ur at its real size, about 1.2 km by 0.8 km inside its
-wall, with 2,186 generated courtyard houses, the temenos and ziggurat, the
-harbours and the river. Walk it in first person; the city builds itself around
-you as you go. See [PLAN.md](PLAN.md) for the design and roadmap.
+wall: around 2,000 generated courtyard houses with roof terraces, the canal
+through the city with its bridges, the harbours, and the temple district with
+the ziggurat and its temples. Walk it in first person; the city builds itself
+around you as you go. See [PLAN.md](PLAN.md) for the design and roadmap.
 
 Play the latest build: https://jawaadjariwala.github.io/Play-Mesopotamia/
+
+## Playing
+
+- **Keyboard and mouse:** W A S D or the arrow keys to move, the mouse to look,
+  Shift to run. Esc opens the menu.
+- **Touch screens (tablets, touch Chromebooks):** the stick moves you, drag
+  anywhere to look around, tap Run to run.
+- **The menu** lets you jump straight to the ziggurat, the temple district, the
+  canal, the West Harbour or the city wall, which helps a whole class get to the
+  same place quickly.
 
 ## Running it
 
 ```
 npm install
-npm run dev          # http://localhost:5173
-node scripts/shoot.mjs   # headless check: fps, errors, screenshots (dev server running)
+npm run dev                    # http://localhost:5173
+node scripts/shoot.mjs         # headless: fps, errors, screenshots (dev server running)
+node scripts/walk-check.mjs    # walking, collisions, the stair, bridges, no way out of the city
+node scripts/shake-check.mjs   # per-frame camera motion while walking (or `run`)
 ```
 
-Click to walk: WASD or arrow keys, Shift to run, mouse to look. Fixed camera
-views for screenshots: `?view=street`, `?view=ziggurat`, `?view=aerial`,
-`?view=wall`; add `&autopilot=5` to drift at 5 m/s and test streaming. Lighting
-can be tuned from the URL too, for example `?exp=0.9&sun=5&env=0.3&bounce=8`.
+Fixed camera views for screenshots skip the menus: `?view=street`,
+`?view=rooftops`, `?view=temenos`, `?view=ziggurat`, `?view=canal`,
+`?view=aerial`, `?view=wall`; add `&autopilot=5` to drift at 5 m/s and test
+streaming. `?stats` shows the performance overlay while playing.
 
 ## Tech
 

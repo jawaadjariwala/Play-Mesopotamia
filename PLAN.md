@@ -209,6 +209,16 @@ Rules
                GitHub Pages (code + assets)
 ```
 
+## Visual reference
+
+The look and layout follow an educational 3D reconstruction of Ur (Mozaik
+Education, "The city of Ur, 3rd millennium BC"), checked against the
+archaeology where it matters: the house forms, roof terraces, the temple
+district's composition, the canal through the city and the harbour inlets. It
+shows Ur a few centuries earlier than this game's date; the ziggurat and temple
+district still apply. Nothing from it is copied: models, textures and images
+here are all made for this project.
+
 ## What the evidence says (and what the game won't invent)
 
 - **Streets:** narrow, winding lanes between blank house walls, exactly as in
@@ -355,15 +365,18 @@ Exit: a screenshot people mistake for a render, at measured fps.
 - [x] Softer sun: less haze glow, visible sky darkened so it doesn't clip to white, gentler bloom
 - [x] Quality governor: 1.5x render scale on retina, then less resolution, then AO off, as needed
 - [x] Weathering noise baked into a texture instead of computed per pixel
-- [ ] Street life on the walls: more doors, benches, drains, rubbish, steps up to raised doorways
+- [x] Houses v2 after the reference reconstruction: upper rooms, roof terraces with reed sunshades, ladders, beam-ends, windows, timber bands, door frames, gaps between houses, pale plaster
+- [x] Irregular wall outline with towers, gatehouses and openings for water; canal through the city with quays and bridges; palms inside the city; irrigated fields outside
+- [x] Camera judder fixed (character controller stalled when pushed into the floor)
+- [ ] Street life on the walls: benches, drains, rubbish, steps up to raised doorways
 - [ ] Bends in the longer streets
 - [ ] Occasional 40 ms frame while streaming (headless); find the GPU-side cause
-- [ ] Temples in the temenos (the city's centre): Ningal's temple and the gipar, E-nun-mah, the E-dublal-mah gate
+- [x] Temple district: buttressed enclosure, ziggurat court, triple stair and top shrine, altar platform, five temple compounds (Gipar, E-nun-mah, E-hursag, storerooms, E-dublal-mah); layout simplified
 - [ ] Harbour quays as the trading area (no market square has been excavated at Ur; trade centred on the harbours)
 - [ ] Household details the excavations do show: washrooms and toilets over drainage pits, household chapels
 - [ ] Trace one block of Woolley's residential quarter plan into JSON and swap it in
 - [ ] City generator v1: stairs, drains, rounded corners and jambs
-- [ ] Touch controls for phones and tablets
+- [x] Start screen, pause menu with places to jump to, a map, touch controls (stick, drag to look, run)
 - [ ] Load Rapier's WASM as its own file instead of inlined (the JS bundle is 1.9 MB gzipped, mostly physics)
 - [ ] Interaction prompts, inspect view, codex with 10 entries
 - [ ] Two characters with Ink dialogue (a homeowner, Ea-nasir)

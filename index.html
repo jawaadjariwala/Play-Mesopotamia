@@ -5,19 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Play Mesopotamia</title>
     <link rel="icon" href="data:," />
+    <meta name="description" content="Walk through the ancient city of Ur, around 1750 BCE, in your browser." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Noto+Sans+Cuneiform&display=swap" rel="stylesheet" />
     <style>
       html, body { margin: 0; height: 100%; overflow: hidden; background: #c9b79a; }
       canvas { display: block; }
       #loading {
         position: fixed; inset: 0; display: grid; place-items: center;
-        font: 600 18px/1.4 Georgia, serif; color: #3b2a1a; letter-spacing: 0.04em;
+        font: 700 19px/1.4 'Atkinson Hyperlegible', system-ui, sans-serif; color: #24407f;
       }
-      #hint {
-        position: fixed; left: 50%; bottom: 36px; transform: translateX(-50%);
-        padding: 10px 16px; border-radius: 6px; background: rgba(30, 20, 12, 0.7); color: #f3e9d8;
-        font: 15px/1.5 Georgia, serif; text-align: center; pointer-events: none;
-      }
-      #hint b { font-weight: 600; }
       #stats {
         position: fixed; top: 8px; left: 8px; padding: 6px 8px; border-radius: 4px;
         background: rgba(0, 0, 0, 0.55); color: #f3e9d8;
@@ -26,7 +24,6 @@
     </style>
   </head>
   <body>
-    <div id="hint" hidden><b>Click to walk around Ur</b><br />WASD or arrow keys to move, Shift to run, mouse to look, Esc to stop</div>
     <div id="loading">Entering Ur, around 1750 BCE…</div>
     <script type="module" src="/src/main.ts"></script>
   </body>
