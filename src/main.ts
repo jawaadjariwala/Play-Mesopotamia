@@ -180,6 +180,10 @@ async function main() {
     __insideWall: (x: number, z: number) => insideWallShape(x, z, 0),
   });
 
+  // Compile every material's GPU program behind the loading screen, so the first seconds
+  // of the start screen don't stutter.
+  loading.textContent = 'Preparing the view…';
+  await renderer.compileAsync(scene, camera);
   loading.remove();
 
   // Places to jump to from the menu.
