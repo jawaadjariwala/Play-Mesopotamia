@@ -1,7 +1,7 @@
 import * as THREE from 'three/webgpu';
 import type { Materials } from '../materials';
 import { MeshBuilder, rectCorners } from '../generator/meshBuilder';
-import { addBuilding, createBuilders, meshesFrom, type ColliderBox } from '../generator/buildings';
+import { addBuilding, builderLayers, createBuilders, layerMesh, type ColliderBox } from '../generator/buildings';
 import { PotteryPool, type PotType, type PropSpec } from '../props/pottery';
 import { attribute, float, int, positionLocal, uniformArray } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -28,7 +28,13 @@ interface Job {
   builders: ReturnType<typeof createBuilders>;
   colliders: ColliderBox[];
   props: PropSpec[];
+  /** Mesh building happens one material layer per step, after all houses are added. */
+  layers?: ReturnType<typeof builderLayers>;
+  meshes: THREE.Mesh[];
 }
+
+/** Small details (beam-ends, windows, ladders) are only drawn within this distance of a block. */
+const DETAIL_RADIUS = 40;
 
 function disposeGroup(group: THREE.Group) {
   group.traverse((o) => {
@@ -40,6 +46,8 @@ interface Loaded {
   group: THREE.Group;
   colliders: unknown;
   pots: [PotType, number][];
+  /** Whether detail meshes are currently shown. */
+  near: boolean;
 }
 
 function tagBlock(g: THREE.BufferGeometry, id: number): THREE.BufferGeometry {
@@ -162,18 +170,36 @@ export class CityStreamer {
       if (!this.job) {
         const next = wanted.shift();
         if (!next) break;
-        this.job = { id: next.id, k: 0, builders: createBuilders(), colliders: [], props: [] };
+        this.job = { id: next.id, k: 0, builders: createBuilders(), colliders: [], props: [], meshes: [] };
       }
       const job = this.job;
       const houses = this.houses[job.id];
       const t0 = performance.now();
-      const h = houses[job.k++];
-      job.colliders.push(...addBuilding(h.spec, job.builders));
-      job.props.push(...h.props);
-      this.worst.house = Math.max(this.worst.house, performance.now() - t0);
-      if (job.k >= houses.length) {
-        this.job = null;
-        this.finish(job, sync);
+      if (job.k < houses.length) {
+        const h = houses[job.k++];
+        job.colliders.push(...addBuilding(h.spec, job.builders));
+        job.props.push(...h.props);
+        this.worst.house = Math.max(this.worst.house, performance.now() - t0);
+        continue;
+      }
+      // All houses added: turn one material layer into a mesh per step.
+      job.layers ??= builderLayers(job.builders, this.mats);
+      const layer = job.layers.shift();
+      if (layer) {
+        const mesh = layerMesh(layer);
+        if (mesh) job.meshes.push(mesh);
+        this.worst.finish = Math.max(this.worst.finish, performance.now() - t0);
+        continue;
+      }
+      this.job = null;
+      this.finish(job, sync);
+    }
+    // Details only up close.
+    for (const [id, l] of this.loaded) {
+      const near = distanceToRect(x, z, this.blocks[id].rect) < DETAIL_RADIUS;
+      if (l.near !== near) {
+        l.near = near;
+        for (const m of l.group.children) if (m.userData.detail) m.visible = near;
       }
     }
     this.lastBuildMs = performance.now() - start;
@@ -188,7 +214,7 @@ export class CityStreamer {
     const t0 = performance.now();
     const group = new THREE.Group();
     group.name = `block-${job.id}`;
-    group.add(...meshesFrom(job.builders, this.mats));
+    group.add(...job.meshes);
     this.worst.finish = Math.max(this.worst.finish, performance.now() - t0);
     const attach = () => {
       this.attaching.delete(job.id);
@@ -199,7 +225,7 @@ export class CityStreamer {
       }
       const t1 = performance.now();
       this.group.add(group);
-      this.loaded.set(job.id, { group, colliders: this.physics.add(job.colliders), pots: this.pottery.add(job.props, job.id + 1) });
+      this.loaded.set(job.id, { group, colliders: this.physics.add(job.colliders), pots: this.pottery.add(job.props, job.id + 1), near: true });
       this.worst.attach = Math.max(this.worst.attach, performance.now() - t1);
       this.worst.colliders = Math.max(this.worst.colliders, job.colliders.length);
       this.setHidden(job.id, 1);
@@ -222,37 +248,32 @@ export class CityStreamer {
   }
 }
 
-/** Low-detail house: outer walls, roof around the court, and the court's inner walls. */
+/** Low-detail house: outer walls, roof around the court, the court's inner walls, and any upper room. */
 function massHouse(h: House, walls: MeshBuilder, roofs: MeshBuilder) {
   walls.shade = roofs.shade = h.spec.shade ?? 1;
   const t = h.spec.thickness / 2;
-  const [px, pz] = h.spec.position;
-  const outer = h.spec.walls[0];
-  const W = outer.to[0] + t; // plot width, from the first (north) wall
-  const D = h.spec.walls[1].to[1] + t;
-  const r: Rect = [px + t, pz + t, px + W - t, pz + D - t];
-  const H = h.spec.wallHeight - 0.1;
-  const R = h.spec.roofHeight;
+  const f = h.footprint;
+  const r: Rect = [f[0] + 0.02, f[1] + 0.02, f[2] - 0.02, f[3] - 0.02];
+  const H = h.wallHeight - 0.1;
+  const R = h.roofHeight;
   const [cx0, cz0, cx1, cz1] = h.court;
+  void t;
 
-  // Outer walls (outward-facing), via a prism without top.
   const box = (rect: Rect, y0: number, y1: number, inward = false) => {
     const b = rectCorners(rect[0], rect[1], rect[2], rect[3], y0);
     const tp = rectCorners(rect[0], rect[1], rect[2], rect[3], y1);
-    const sides: [number, number][] = [
+    for (const [i, j] of [
       [0, 1],
       [1, 2],
       [2, 3],
       [3, 0],
-    ];
-    for (const [i, j] of sides) {
+    ] as const) {
       if (inward) walls.quad(b[j], b[i], tp[i], tp[j]);
       else walls.quad(b[i], b[j], tp[j], tp[i]);
     }
   };
   box(r, 0, H);
   box([cx0, cz0, cx1, cz1], 0, R, true);
-  // Roof: four slabs around the court.
   for (const s of [
     [r[0], r[1], r[2], cz0],
     [r[0], cz1, r[2], r[3]],
@@ -260,6 +281,12 @@ function massHouse(h: House, walls: MeshBuilder, roofs: MeshBuilder) {
     [cx1, cz0, r[2], cz1],
   ] as Rect[]) {
     const c = rectCorners(s[0], s[1], s[2], s[3], R);
+    roofs.quad(c[0], c[1], c[2], c[3]);
+  }
+  if (h.upper) {
+    const u = h.upper.rect;
+    box(u, R, h.upper.top);
+    const c = rectCorners(u[0], u[1], u[2], u[3], h.upper.top);
     roofs.quad(c[0], c[1], c[2], c[3]);
   }
 }

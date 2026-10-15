@@ -1,3 +1,4 @@
+import * as THREE from 'three/webgpu';
 import { mulberry32 } from '../props/random';
 import type { BuildingSpec, DoorSpec, WallSpec } from '../generator/buildings';
 import type { PropSpec } from '../props/pottery';
@@ -142,27 +143,70 @@ function splitBlock(r: Rect, rand: () => number): Plot[] {
 
 const T = 0.6; // wall thickness
 
-/**
- * A courtyard house filling a plot: outer walls inset by half a wall so neighbours
- * stand side by side (party walls read as one thick wall), a court in the middle,
- * eight rooms around it, and a street door into the room that opens onto the court.
- */
 export interface House {
   spec: BuildingSpec;
   props: PropSpec[];
-  /** Court in world coordinates, for the low-detail massing. */
+  /** Outer footprint, court and optional upper room, in world coordinates (for the far massing). */
+  footprint: Rect;
   court: Rect;
+  roofHeight: number;
+  wallHeight: number;
+  upper?: { rect: Rect; top: number };
 }
 
+/** Rotation (degrees) and the plot corner that becomes the local origin, per street side. */
+const FRAMES: Record<Side, { rot: number; origin: (r: Rect) => [number, number]; size: (r: Rect) => [number, number] }> = {
+  n: { rot: 0, origin: (r) => [r[0], r[1]], size: (r) => [r[2] - r[0], r[3] - r[1]] },
+  s: { rot: 180, origin: (r) => [r[2], r[3]], size: (r) => [r[2] - r[0], r[3] - r[1]] },
+  w: { rot: 90, origin: (r) => [r[0], r[3]], size: (r) => [r[3] - r[1], r[2] - r[0]] },
+  e: { rot: -90, origin: (r) => [r[2], r[1]], size: (r) => [r[3] - r[1], r[2] - r[0]] },
+};
+
+/**
+ * A courtyard house on a plot. Built in a local frame where the street is always on the
+ * north side (local z = 0) and then rotated into place, so every feature is written once.
+ *
+ * Ground floor: rooms around a central court, the street door opening into the room that
+ * leads to the court. About a third of houses have an upper room over the street range,
+ * with a door onto the roof terrace. Roofs carry reed sunshades, pots and baskets; courts
+ * have ladders up to the roof. Outer walls get beam-ends, small high windows with timber
+ * lintels and sometimes a timber band, as in the reconstruction this follows.
+ */
 export function houseForPlot(plot: Plot, id: string): House {
   const rand = mulberry32(plot.seed);
-  const [x0, z0, x1, z1] = plot.rect;
-  const W = x1 - x0;
-  const D = z1 - z0;
+  // Set back from the plot edges: a little on the street side, and sometimes a passage
+  // between neighbours, so streets open up into small spaces instead of solid walls.
+  const r: Rect = [...plot.rect];
+  const back = () => (rand() < 0.35 ? 1.2 + rand() * 1.0 : 0);
+  const street = rand() * 0.7;
+  const inset: Record<Side, number> = { n: back(), s: back(), w: back(), e: back() };
+  inset[plot.street] = street;
+  r[0] += inset.w;
+  r[1] += inset.n;
+  r[2] -= inset.e;
+  r[3] -= inset.s;
+  if (r[2] - r[0] < 7.5 || r[3] - r[1] < 7.5) {
+    r[0] = plot.rect[0];
+    r[1] = plot.rect[1];
+    r[2] = plot.rect[2];
+    r[3] = plot.rect[3];
+  }
+
+  const frame = FRAMES[plot.street];
+  const [W, D] = frame.size(r);
+  const [ox, oz] = frame.origin(r);
+  const yaw = THREE.MathUtils.degToRad(frame.rot);
+  const toWorld = (lx: number, lz: number): [number, number] => [
+    ox + lx * Math.cos(yaw) + lz * Math.sin(yaw),
+    oz - lx * Math.sin(yaw) + lz * Math.cos(yaw),
+  ];
+  const rectToWorld = (a: number, b: number, c: number, d: number): Rect => {
+    const [p, q] = [toWorld(a, b), toWorld(c, d)];
+    return [Math.min(p[0], q[0]), Math.min(p[1], q[1]), Math.max(p[0], q[0]), Math.max(p[1], q[1])];
+  };
+
   const t = T / 2;
-  // Whether houses at Ur had upper floors is debated; most are kept to one storey.
-  const twoStorey = rand() < 0.12;
-  const wallHeight = twoStorey ? 6.3 + rand() * 0.4 : 3.7 + rand() * 0.6;
+  const wallHeight = 3.5 + rand() * 0.6;
   const roofHeight = wallHeight - 0.4;
   const doorH = 1.9 + rand() * 0.25;
   const door = (at: number, width = 0.85): DoorSpec => ({ at, width, height: doorH });
@@ -177,29 +221,14 @@ export function houseForPlot(plot: Plot, id: string): House {
   const courtLip = roofHeight + 0.15;
   const inner = roofHeight - 0.1;
 
-  // Street door goes in the middle stretch of the street wall, into the room that opens on the court.
-  const streetLeaf = { hinge: (rand() < 0.5 ? 'start' : 'end') as 'start' | 'end', open: rand() < 0.35 ? 0 : 10 + rand() * 60 };
-  const midDoor = (a: number, b: number) => a + (b - a) * (0.3 + rand() * 0.4);
-
-  const outer: WallSpec[] = [
-    { from: [t, t], to: [W - t, t] }, // n
-    { from: [W - t, t], to: [W - t, D - t] }, // e
-    { from: [W - t, D - t], to: [t, D - t] }, // s
-    { from: [t, D - t], to: [t, t] }, // w
-  ];
-  const streetWall = { n: 0, e: 1, s: 2, w: 3 }[plot.street];
-  const sw = outer[streetWall];
-  // Distance along that wall to the middle stretch (walls run counter-clockwise).
-  const along = {
-    n: [cx0 - t, cx1 - t],
-    e: [cz0 - t, cz1 - t],
-    s: [W - t - cx1, W - t - cx0],
-    w: [D - t - cz1, D - t - cz0],
-  }[plot.street];
-  sw.doors = [{ ...door(midDoor(along[0], along[1]), 0.9), leaf: streetLeaf }];
+  const streetDoorAt = cx0 - t + cw * (0.3 + rand() * 0.4);
+  const leaf = { hinge: (rand() < 0.5 ? 'start' : 'end') as 'start' | 'end', open: rand() < 0.35 ? 0 : 10 + rand() * 60 };
 
   const walls: WallSpec[] = [
-    ...outer,
+    { from: [t, t], to: [W - t, t], outer: true, doors: [{ ...door(streetDoorAt, 0.9), leaf, frame: true }] },
+    { from: [W - t, t], to: [W - t, D - t], outer: true },
+    { from: [W - t, D - t], to: [t, D - t], outer: true },
+    { from: [t, D - t], to: [t, t], outer: true },
     // Court walls stand just above the roofs.
     { from: [cx0, cz0], to: [cx1, cz0], height: courtLip, doors: [door(cw / 2)] },
     { from: [cx1, cz0], to: [cx1, cz1], height: courtLip, doors: [door(cd / 2)] },
@@ -215,30 +244,69 @@ export function houseForPlot(plot: Plot, id: string): House {
     { from: [t, cz1], to: [cx0, cz1], height: inner },
     { from: [cx1, cz1], to: [W - t, cz1], height: inner },
   ];
+  const roofs: BuildingSpec['roofs'] = [
+    { rect: [t, t, W - t, cz0] },
+    { rect: [t, cz1, W - t, D - t] },
+    { rect: [t, cz0, cx0, cz1] },
+    { rect: [cx1, cz0, W - t, cz1] },
+  ];
+
+  // Upper room over the street range, sometimes only part of it, with a door onto the terrace.
+  let upper: House['upper'];
+  if (rand() < 0.32) {
+    const ux0 = t + 0.04;
+    const ux1 = rand() < 0.5 ? W - t - 0.04 : Math.max(cx1, t + (W - 2 * t) * (0.55 + rand() * 0.3));
+    const uz0 = t + 0.04;
+    const uz1 = cz0;
+    const top = roofHeight + 2.7;
+    const upRoof = top - 0.4;
+    const terraceDoorX = (t + cx0) / 2;
+    const up: Partial<WallSpec> = { base: roofHeight, height: top, capAbove: upRoof, outer: true };
+    walls.push(
+      { ...up, from: [ux0, uz0], to: [ux1, uz0] },
+      { ...up, from: [ux1, uz0], to: [ux1, uz1] },
+      { ...up, from: [ux1, uz1], to: [ux0, uz1], doors: cx0 - t > 1.3 ? [door(ux1 - terraceDoorX, 0.8)] : [] },
+      { ...up, from: [ux0, uz1], to: [ux0, uz0] },
+    );
+    roofs.push({ rect: [ux0, uz0, ux1, uz1], height: upRoof });
+    upper = { rect: rectToWorld(ux0 - t, uz0 - t, ux1 + t, uz1 + t), top: top - 0.1 };
+  }
+
+  // Sunshade on the back roof, a ladder up from the court.
+  const awnings: BuildingSpec['awnings'] = [];
+  if (rand() < 0.45 && D - t - cz1 > 2.6 && W > 6) {
+    const ax = t + 0.4 + rand() * Math.max(0, W - 2 * t - 3.4);
+    awnings.push({ rect: [ax, cz1 + 0.35, ax + 2.6, cz1 + 2.35], base: roofHeight });
+  }
+  const ladders: BuildingSpec['ladders'] = [];
+  if (rand() < 0.35) ladders.push({ foot: [cx0 + 0.8, cz0 + 1.15], top: [cx0 + 0.8, cz0 + t + 0.02], height: courtLip });
 
   const spec: BuildingSpec = {
     id,
     evidence: 'invented',
     note: 'Generated house following the courtyard plan Woolley recorded across the residential quarters.',
-    position: [x0, z0],
-    rotation: 0,
+    position: [ox, oz],
+    rotation: frame.rot,
     wallHeight,
     thickness: T,
     footingHeight: 0.7 + rand() * 0.4,
     roofHeight,
     walls,
-    roofs: [
-      { rect: [t, t, W - t, cz0] },
-      { rect: [t, cz1, W - t, D - t] },
-      { rect: [t, cz0, cx0, cz1] },
-      { rect: [cx1, cz0, W - t, cz1] },
-    ],
+    roofs,
     floors: rand() < 0.65 ? [{ rect: [cx0, cz0, cx1, cz1], material: 'brick' }] : [],
     // Some houses freshly re-plastered and pale, others weathered and darker.
-    shade: rand() < 0.15 ? 1.12 + rand() * 0.08 : 0.8 + rand() * 0.25,
+    shade: rand() < 0.15 ? 1.08 + rand() * 0.06 : 0.86 + rand() * 0.2,
+    details: {
+      beams: rand() < 0.75,
+      windows: rand() < 0.6 ? [2.3] : [],
+      band: rand() < 0.3 ? roofHeight - 1.25 : undefined,
+    },
+    awnings,
+    ladders,
   };
+  if (upper) spec.details!.windows = [...spec.details!.windows!, roofHeight + 1.15];
 
-  // A few pots against the court walls, in world coordinates.
+  // Pots against the court walls, and a few up on the roof, in world coordinates.
   const props: PropSpec[] = [];
   const pave = spec.floors!.length ? 0.05 : 0;
   const pots = Math.floor(rand() * 4);
@@ -247,7 +315,22 @@ export function houseForPlot(plot: Plot, id: string): House {
     const px = onX ? cx0 + 0.65 + rand() * (cw - 1.3) : rand() < 0.5 ? cx0 + 0.55 : cx1 - 0.55;
     const pz = onX ? (rand() < 0.5 ? cz0 + 0.55 : cz1 - 0.55) : cz0 + 0.65 + rand() * (cd - 1.3);
     const type = rand() < 0.6 ? 'storageJar' : rand() < 0.5 ? 'cookingPot' : 'bowl';
-    props.push({ type, position: [x0 + px, z0 + pz], y: pave, tilt: rand() < 0.3 ? 5 : 0 });
+    props.push({ type, position: toWorld(px, pz), y: pave, tilt: rand() < 0.3 ? 5 : 0 });
   }
-  return { spec, props, court: [x0 + cx0, z0 + cz0, x0 + cx1, z0 + cz1] };
+  const roofPots = Math.floor(rand() * 3);
+  for (let k = 0; k < roofPots; k++) {
+    const px = t + 0.8 + rand() * (W - 2 * t - 1.6);
+    const pz = cz1 + 0.6 + rand() * Math.max(0.1, D - t - cz1 - 1.2);
+    props.push({ type: rand() < 0.5 ? 'storageJar' : 'cookingPot', position: toWorld(px, pz), y: roofHeight, scale: 0.8 });
+  }
+
+  return {
+    spec,
+    props,
+    footprint: rectToWorld(0, 0, W, D),
+    court: rectToWorld(cx0, cz0, cx1, cz1),
+    roofHeight,
+    wallHeight,
+    upper,
+  };
 }

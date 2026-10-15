@@ -62,7 +62,7 @@ export function createSky(
   // Sunlit mud and dust throw warm light back up into streets and courtyards.
   const groundBounce = new THREE.Mesh(
     new THREE.CircleGeometry(5000, 32).rotateX(-Math.PI / 2),
-    new THREE.MeshBasicNodeMaterial({ color: new THREE.Color(0.62, 0.45, 0.3).multiplyScalar(bounce) }),
+    new THREE.MeshBasicNodeMaterial({ color: new THREE.Color(0.6, 0.53, 0.44).multiplyScalar(bounce) }),
   );
   groundBounce.position.y = -5;
   envScene.add(groundBounce);

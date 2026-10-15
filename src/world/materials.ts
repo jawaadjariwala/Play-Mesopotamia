@@ -64,6 +64,10 @@ interface SurfaceOptions {
   shaded?: boolean;
   /** 1 keeps the scanned colour, lower values push it toward grey. */
   saturation?: number;
+  /** Overall brightness multiplier, applied after the tint. */
+  brightness?: number;
+  /** Patches of dry grass, for open ground. */
+  grass?: number;
   /** Patches where the surface layer has fallen away to show what's underneath. */
   reveal?: { diff: THREE.Texture; scale: number; threshold: number; tint: THREE.ColorRepresentation };
   /** Dark vertical runs where rain has washed mud down from the wall tops. */
@@ -93,6 +97,12 @@ function surfaceFrom({ diff, nor, arm }: Awaited<ReturnType<typeof loadSet>>, op
   let base = texture(diff, uv()).rgb.mul(variation);
   if (opts.shaded) base = base.mul(attribute('shade', 'float'));
   if (opts.saturation !== undefined) base = mix(vec3(luminance(base)), base, opts.saturation);
+  if (opts.brightness !== undefined) base = base.mul(opts.brightness);
+  if (opts.grass) {
+    // Large patches broken up by smaller ones, so grass grows in clumps along the lanes.
+    const patch = smoothstep(0.5, 0.68, worldNoise(36)).mul(smoothstep(0.35, 0.6, worldNoise(5)));
+    base = mix(base, color(new THREE.Color(0x77753f)).mul(variation), patch.mul(opts.grass));
+  }
   if (opts.tint !== undefined) base = base.mul(color(new THREE.Color(opts.tint)));
   if (opts.reveal) {
     const r = opts.reveal;
@@ -123,6 +133,10 @@ export interface Materials {
   timber: THREE.MeshStandardNodeMaterial;
   pottery: THREE.MeshStandardNodeMaterial;
   bark: THREE.MeshStandardNodeMaterial;
+  /** Window and vent recesses. */
+  opening: THREE.MeshStandardNodeMaterial;
+  /** Woven reed matting for sunshades. */
+  reed: THREE.MeshStandardNodeMaterial;
   /** Palm fronds: colour comes from vertex colours, sway from the wind uniform. */
   frond: THREE.MeshStandardNodeMaterial;
 }
@@ -134,7 +148,10 @@ export async function createMaterials(renderer: THREE.WebGPURenderer): Promise<M
   const plaster = surfaceFrom(plasterSet, {
     variation: 0.22,
     groundGrime: 0.9,
-    tint: 0xf0e2cc,
+    // Pale, sun-bleached mud plaster, closer to cream than to brown.
+    tint: 0xfff2de,
+    saturation: 0.6,
+    brightness: 1.35,
     reveal: { diff: brickSet.diff, scale: 2.4 / 1.6, threshold: 0.62, tint: 0xa08a70 },
     streaks: 1,
     shaded: true,
@@ -142,8 +159,8 @@ export async function createMaterials(renderer: THREE.WebGPURenderer): Promise<M
   // Ur's baked bricks are a pale buff, not the orange of modern fired brick.
   const bakedBrick = surfaceFrom(brickSet, { variation: 0.15, groundGrime: 0.7, tint: 0xe6d6bc, saturation: 0.45, shaded: true });
   const [mudRoof, ground, timber, bark] = await Promise.all([
-    surface('clay_block_wall', aniso, { variation: 0.2, groundGrime: 0, shaded: true }),
-    surface('dirt_floor', aniso, { variation: 0.3, groundGrime: 0, normalStrength: 1.2 }),
+    surface('clay_block_wall', aniso, { variation: 0.2, groundGrime: 0, shaded: true, tint: 0xf2e2c8, saturation: 0.55, brightness: 1.3 }),
+    surface('dirt_floor', aniso, { variation: 0.3, groundGrime: 0, normalStrength: 1.2, saturation: 0.6, brightness: 1.15, grass: 0.75 }),
     // Doors and lintels: palm and poplar planks, sun-bleached.
     surface('weathered_brown_planks', aniso, { variation: 0.15, groundGrime: 0.4, tint: 0xc4ad94, saturation: 0.75 }),
     surface('bark_willow', aniso, { variation: 0.2, groundGrime: 0.3, tint: 0xcdb89c, saturation: 0.8 }),
@@ -160,5 +177,9 @@ export async function createMaterials(renderer: THREE.WebGPURenderer): Promise<M
   frond.positionNode = positionLocal.add(
     vec3(sin(time.mul(1.1).add(phase).add(positionLocal.y.mul(0.6))), 0, cos(time.mul(0.83).add(phase))).mul(reach),
   );
-  return { plaster, bakedBrick, mudRoof, ground, timber, pottery, bark, frond };
+  const opening = new THREE.MeshStandardNodeMaterial({ color: 0x1c140e, roughness: 1 });
+  // Reed mat: straw colour with fine stripes along the reeds, from the baked noise stretched one way.
+  const reed = new THREE.MeshStandardNodeMaterial({ roughness: 0.95, side: THREE.DoubleSide });
+  reed.colorNode = mix(color(new THREE.Color(0x8c7448)), color(new THREE.Color(0xc9ae78)), texture(noiseTex, uv().mul(vec2(0.15, 6))).r);
+  return { plaster, bakedBrick, mudRoof, ground, timber, pottery, bark, frond, opening, reed };
 }

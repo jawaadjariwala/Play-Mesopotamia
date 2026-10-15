@@ -24,6 +24,7 @@ function viewPose(view: string, spawn: THREE.Vector3, spawnYaw: number, sunDir: 
       pos: spawn.clone().setY(1.65),
       look: spawn.clone().add(new THREE.Vector3(-Math.sin(spawnYaw), 0, -Math.cos(spawnYaw)).multiplyScalar(50)).setY(4),
     },
+    rooftops: { pos: spawn.clone().add(new THREE.Vector3(-30, 24, 26)), look: spawn.clone().add(new THREE.Vector3(-6, 0, -4)) },
     ziggurat: { pos: new THREE.Vector3(zx + 75, 1.65, zz + 70), look: new THREE.Vector3(zx, 14, zz) },
     aerial: { pos: new THREE.Vector3(260, 230, 520), look: new THREE.Vector3(-60, 0, -80) },
     wall: { pos: new THREE.Vector3(272, 1.65, 407), look: new THREE.Vector3(292, 7, 436) },
@@ -51,11 +52,11 @@ async function main() {
     neutral: THREE.NeutralToneMapping,
   };
   renderer.toneMapping = toneMaps[q.get('tm') ?? 'aces'] ?? THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = num('exp', 0.8);
+  renderer.toneMappingExposure = num('exp', 0.9);
 
-  const sky = createSky(renderer, scene, num('elev', 38), num('azim', -50), num('bounce', 8));
+  const sky = createSky(renderer, scene, num('elev', 38), num('azim', -50), num('bounce', 5));
   sky.sun.intensity = num('sun', 4);
-  scene.environmentIntensity = num('env', 0.3);
+  scene.environmentIntensity = num('env', 0.5);
   scene.fog = new THREE.FogExp2(0xd9c9ae, num('fog', 0.0011));
 
   loading.textContent = 'Laying out the streets of Ur…';
