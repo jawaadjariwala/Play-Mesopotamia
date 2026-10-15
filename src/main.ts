@@ -8,6 +8,7 @@ import { Player } from './player/player';
 import { createMaterials } from './world/materials';
 import { createWaterMaterial } from './world/water';
 import { buildTerrain, terrainHeight } from './world/terrain';
+import { createBirds, createSmoke } from './world/life';
 import { MeshBuilder, rectCorners } from './world/generator/meshBuilder';
 import { buildLandmarks, canalBridges } from './world/landmarks';
 import { CityStreamer } from './world/city/streamer';
@@ -102,6 +103,16 @@ async function main() {
   const cityPalms = new CityPalms(palmPoints, mats, impostor);
   scene.add(cityPalms.group);
   scene.add(buildPalmBelt(bankPalmPoints(plan), impostor, ground));
+  // Life: smoke from cooking fires in a scattering of courtyards, and birds over the city and river.
+  scene.add(createSmoke(city.courtCentres(55)));
+  scene.add(
+    createBirds([
+      { center: new THREE.Vector3(-90, 42, -40), radius: 80, count: 14 },
+      { center: new THREE.Vector3(-560, 30, -250), radius: 120, count: 18 },
+      { center: new THREE.Vector3(160, 50, 260), radius: 90, count: 12 },
+      { center: new THREE.Vector3(plan.ziggurat.position[0], 55, plan.ziggurat.position[1]), radius: 55, count: 9 },
+    ]),
+  );
 
   // Spawn on the street crossing nearest the plan's spawn point, facing the ziggurat.
   const [sx, sz] = new StreetGrid().crossingNear(...plan.spawn.near);

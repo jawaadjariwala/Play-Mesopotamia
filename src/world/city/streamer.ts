@@ -98,6 +98,15 @@ export class CityStreamer {
     (this.hidden.array as number[])[id] = value;
   }
 
+  /** Court centres of every n-th house, for placing cooking fires. */
+  courtCentres(every: number): THREE.Vector3[] {
+    const out: THREE.Vector3[] = [];
+    let k = 0;
+    for (const hs of this.houses)
+      for (const h of hs) if (k++ % every === 0) out.push(new THREE.Vector3((h.court[0] + h.court[2]) / 2, 0.6, (h.court[1] + h.court[3]) / 2));
+    return out;
+  }
+
   get houseCount() {
     return this.houses.reduce((n, h) => n + h.length, 0);
   }
