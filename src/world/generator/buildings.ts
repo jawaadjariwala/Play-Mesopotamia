@@ -29,6 +29,8 @@ export interface WallSpec {
   capAbove?: number;
   /** An outside wall: gets beam-ends, windows, bands and door frames when the building asks for them. */
   outer?: boolean;
+  /** Spacing of shallow buttresses (pilasters) on the outside face, as on temple walls. */
+  buttress?: number;
   doors?: DoorSpec[];
 }
 
@@ -321,6 +323,11 @@ export function addBuilding(spec: BuildingSpec, builders: BuildingBuilders): Col
         if (capped) erodedCap(plaster, from, along, a0, a1, ht, y1, seed);
       }
       if (wall.outer && spec.details) addDetails(spec, builders, from, along, a0, a1, y0 === base, base, capAbove, ht);
+      if (wall.buttress && y0 === base) {
+        const top = (y1 > capAbove ? y1 - CAP_DEPTH : y1) - 0.05;
+        const step = wall.buttress;
+        for (let a = a0 + step / 2; a < a1 - 0.6; a += step) slab(plaster, from, along, a - 0.5, a + 0.5, -ht - 0.4, -ht + 0.05, base, top);
+      }
       // Upper-storey walls are out of reach, so they need no physics.
       if (base > 0) continue;
       const mid = from.clone().addScaledVector(along, (a0 + a1) / 2);
@@ -497,12 +504,38 @@ export function buildZiggurat(spec: ZigguratSpec, mats: Materials): THREE.Group 
     new THREE.Vector3(-sw, first.height, front - 1),
   ]);
 
+  // Two side stairs climbing along the front face to meet the central one (the triple stair),
+  // with a pylon either side of the meeting point.
+  const H1 = first.height;
+  const hw = first.width / 2;
+  for (const side of [-1, 1]) {
+    const outer = side * (hw - 2);
+    const inner = side * (sw + 0.5);
+    const [x0, x1] = side < 0 ? [outer, inner] : [inner, outer];
+    const [y0, y1] = side < 0 ? [0.25, H1] : [H1, 0.25];
+    brick.prism(rectCorners(x0, front - 0.5, x1, front + 5, 0), [
+      new THREE.Vector3(x0, y0, front + 5),
+      new THREE.Vector3(x1, y1, front + 5),
+      new THREE.Vector3(x1, y1, front - 0.5),
+      new THREE.Vector3(x0, y0, front - 0.5),
+    ]);
+    const px0 = side < 0 ? -sw - 2.6 : sw + 0.4;
+    const px1 = side < 0 ? -sw - 0.4 : sw + 2.6;
+    brick.prism(rectCorners(px0, front - 3, px1, front + 1, H1 - 1), rectCorners(px0, front - 3, px1, front + 1, H1 + 3.6), false);
+  }
+
+  // A small shrine on the top terrace.
+  const top = spec.terraces.reduce((h, t) => h + t.height, 0);
+  brick.prism(rectCorners(-5, -3.5, 5, 3.5, top - 0.2), rectCorners(-5, -3.5, 5, 3.5, top + 4.4), false);
+  const door = new MeshBuilder(1);
+  door.prism(rectCorners(-0.8, 3.5, 0.8, 3.53, top), rectCorners(-0.8, 3.5, 0.8, 3.53, top + 2.4), false);
+
   const mesh = new THREE.Mesh(brick.build(), mats.bakedBrick);
   mesh.castShadow = mesh.receiveShadow = true;
   const group = new THREE.Group();
   group.name = 'ziggurat';
   group.userData = { evidence: spec.evidence };
-  group.add(mesh);
+  group.add(mesh, new THREE.Mesh(door.build(), mats.opening));
   group.position.set(spec.position[0], 0, spec.position[1]);
   group.rotation.y = THREE.MathUtils.degToRad(spec.rotation ?? 0);
   return group;

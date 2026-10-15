@@ -21,6 +21,8 @@ export interface Plot {
   rect: Rect;
   street: Side;
   seed: number;
+  /** Open plots: a small square where streets meet, or a palm garden. */
+  open?: 'square' | 'garden';
 }
 
 export interface Block {
@@ -127,11 +129,10 @@ function splitBlock(r: Rect, rand: () => number): Plot[] {
       const b = a + len;
       const last = l1 - b < MIN_PLOT;
       // A corner plot left open now and then: a small square where streets meet.
-      const square = (first || last) && rand() < 0.07;
-      if (!square) {
-        const rect: Rect = longIsX ? [a, row.lo, b, row.hi] : [row.lo, a, row.hi, b];
-        plots.push({ rect, street: row.street, seed: Math.floor(rand() * 1e9) });
-      }
+      // Now and then a plot is a palm garden instead of a house.
+      const open = (first || last) && rand() < 0.07 ? 'square' : rand() < 0.05 ? 'garden' : undefined;
+      const rect: Rect = longIsX ? [a, row.lo, b, row.hi] : [row.lo, a, row.hi, b];
+      plots.push({ rect, street: row.street, seed: Math.floor(rand() * 1e9), open });
       a = b;
       first = false;
       // In deep blocks, a narrow blind alley sometimes runs in between two houses.

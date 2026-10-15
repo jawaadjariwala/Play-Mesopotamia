@@ -22,6 +22,11 @@ interface PalmShape {
 }
 
 const UP = new THREE.Vector3(0, 1, 0);
+/**
+ * Foliage sits on its own layer. (Skipping it in the AO prepass with PassNode.setLayers
+ * crashed three r186's render list, so for now the layer is only bookkeeping.)
+ */
+export const FOLIAGE_LAYER = 1;
 const GOLDEN_ANGLE = 2.39996;
 
 const LIVE = new THREE.Color(0x76845a);
@@ -93,8 +98,10 @@ function frondGeometry(shape: PalmShape): THREE.BufferGeometry {
         .addScaledVector(out, length * t * Math.cos(elevation))
         .addScaledVector(UP, length * t * Math.sin(elevation) - droop * (length * t) ** 2);
 
-    const tint = dead ? DEAD : LIVE.clone().lerp(OLD, Math.max(0, age - 0.55) * 1.6);
-    const tipTint = dead ? DEAD : LIVE_TIP;
+    // Far palms have fewer, wider leaflets that catch more light; darken them so they match.
+    const farDim = shape.far ? 0.72 : 1;
+    const tint = (dead ? DEAD : LIVE.clone().lerp(OLD, Math.max(0, age - 0.55) * 1.6)).clone().multiplyScalar(farDim);
+    const tipTint = (dead ? DEAD : LIVE_TIP).clone().multiplyScalar(farDim);
 
     // Rachis: a thin tapering ribbon.
     const segments = shape.far ? 4 : 10;
@@ -164,6 +171,11 @@ const FAR_SHAPES: PalmShape[] = [
   { height: 10, lean: 0.8, fronds: 16, pairs: 7, leafWidth: 0.16, far: true, seed: 41 },
   { height: 13, lean: 1.5, fronds: 15, pairs: 7, leafWidth: 0.16, far: true, seed: 53 },
 ];
+/** Even lighter far palms for inside the city, where there are hundreds of them. */
+const CITY_FAR_SHAPES: PalmShape[] = [
+  { height: 10, lean: 0.8, fronds: 12, pairs: 5, leafWidth: 0.2, far: true, seed: 61 },
+  { height: 13, lean: 1.4, fronds: 12, pairs: 5, leafWidth: 0.2, far: true, seed: 67 },
+];
 /** A grove switches to full-detail palms when the player is this close to its edge. */
 const NEAR_DISTANCE = 110;
 
@@ -203,6 +215,7 @@ export function buildPalms(
         mine.forEach((m, i) => mesh.setMatrixAt(i, m));
         mesh.castShadow = shadows;
         mesh.receiveShadow = true;
+        mesh.layers.set(FOLIAGE_LAYER);
         mesh.computeBoundingSphere();
         out.add(mesh);
       }
@@ -240,4 +253,105 @@ export function buildPalms(
       }
     },
   };
+}
+
+/**
+ * Palms inside the city (canal banks, squares, gardens). All of them are drawn with the
+ * cheap far shapes in one instanced set; the ones near the player move into a small pool
+ * of detailed, shadow-casting palms. Moving slots around never creates GPU objects.
+ */
+export class CityPalms {
+  readonly group = new THREE.Group();
+  private far: { meshes: THREE.InstancedMesh[]; slot: number }[] = [];
+  private nearMeshes: THREE.InstancedMesh[][] = [];
+  private nearFree: number[][] = [];
+  private nearSlot = new Map<number, number>();
+  private matrices: THREE.Matrix4[];
+  private lastUpdate = -Infinity;
+  private static readonly HIDDEN = new THREE.Matrix4().makeScale(0, 0, 0);
+  private static readonly NEAR = 60;
+
+  constructor(
+    private points: [number, number][],
+    mats: Materials,
+    seed = 21,
+  ) {
+    this.group.name = 'city-palms';
+    const rand = mulberry32(seed);
+    this.matrices = points.map(([x, z]) => {
+      const rot = new THREE.Quaternion().setFromAxisAngle(UP, rand() * Math.PI * 2);
+      const s = 0.8 + rand() * 0.4;
+      return new THREE.Matrix4().compose(new THREE.Vector3(x, 0, z), rot, new THREE.Vector3(s, s, s));
+    });
+    const make = (shapes: PalmShape[], counts: number[], shadows: boolean) =>
+      shapes.map((shape, si) =>
+        [
+          [trunkGeometry(shape), mats.bark],
+          [frondGeometry(shape), mats.frond],
+        ].map(([g, m]) => {
+          const mesh = new THREE.InstancedMesh(g as THREE.BufferGeometry, m as THREE.Material, Math.max(1, counts[si]));
+          mesh.castShadow = shadows;
+          mesh.receiveShadow = true;
+          mesh.frustumCulled = false;
+          mesh.layers.set(FOLIAGE_LAYER);
+          this.group.add(mesh);
+          return mesh;
+        }),
+      );
+    // Far: every palm, split across the far shapes.
+    const farCounts = CITY_FAR_SHAPES.map((_, si) => points.filter((_, i) => i % CITY_FAR_SHAPES.length === si).length);
+    const farMeshes = make(CITY_FAR_SHAPES, farCounts, false);
+    const used = CITY_FAR_SHAPES.map(() => 0);
+    points.forEach((_, i) => {
+      const si = i % CITY_FAR_SHAPES.length;
+      const slot = used[si]++;
+      for (const m of farMeshes[si]) m.setMatrixAt(slot, this.matrices[i]);
+      this.far.push({ meshes: farMeshes[si], slot });
+    });
+    // Near: a fixed pool per shape.
+    const POOL = 60;
+    this.nearMeshes = make(NEAR_SHAPES, NEAR_SHAPES.map(() => POOL), true);
+    for (const meshes of this.nearMeshes)
+      for (const m of meshes) {
+        for (let i = 0; i < POOL; i++) m.setMatrixAt(i, CityPalms.HIDDEN);
+        m.count = 0;
+      }
+    this.nearFree = NEAR_SHAPES.map(() => Array.from({ length: POOL }, (_, i) => POOL - 1 - i));
+  }
+
+  /** Swap palms between the far set and the detailed pool, a couple of times a second. */
+  update(x: number, z: number) {
+    const now = performance.now();
+    if (now - this.lastUpdate < 400) return;
+    this.lastUpdate = now;
+    const dirty = new Set<THREE.InstancedMesh>();
+    this.points.forEach(([px, pz], i) => {
+      const near = Math.hypot(px - x, pz - z) < CityPalms.NEAR;
+      const has = this.nearSlot.has(i);
+      if (near === has) return;
+      const si = i % NEAR_SHAPES.length;
+      const far = this.far[i];
+      if (near) {
+        const slot = this.nearFree[si].pop();
+        if (slot === undefined) return;
+        this.nearSlot.set(i, slot);
+        for (const m of this.nearMeshes[si]) (m.setMatrixAt(slot, this.matrices[i]), dirty.add(m));
+        for (const m of far.meshes) (m.setMatrixAt(far.slot, CityPalms.HIDDEN), dirty.add(m));
+      } else {
+        const slot = this.nearSlot.get(i)!;
+        this.nearSlot.delete(i);
+        this.nearFree[si].push(slot);
+        for (const m of this.nearMeshes[si]) (m.setMatrixAt(slot, CityPalms.HIDDEN), dirty.add(m));
+        for (const m of far.meshes) (m.setMatrixAt(far.slot, this.matrices[i]), dirty.add(m));
+      }
+    });
+    for (const m of dirty) m.instanceMatrix.needsUpdate = true;
+    // Only draw the near pool up to its highest occupied slot (low slots are reused first).
+    NEAR_SHAPES.forEach((_, si) => {
+      this.nearFree[si].sort((a, b) => b - a);
+      let top = 0;
+      for (const slot of this.nearSlot.values()) top = Math.max(top, slot + 1);
+      for (const m of this.nearMeshes[si]) m.count = top;
+    });
+  }
 }

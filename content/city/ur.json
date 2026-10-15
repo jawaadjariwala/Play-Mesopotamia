@@ -13,7 +13,29 @@
       0,
       85,
       180
-    ]
+    ],
+    "shape": {
+      "note": "Irregular outline: the oval radius varies by a few percent around the city, drawn as straight runs between towers.",
+      "vertices": 56,
+      "waves": [
+        [
+          2,
+          0.045,
+          0.7
+        ],
+        [
+          3,
+          0.03,
+          2.1
+        ],
+        [
+          5,
+          0.02,
+          0.4
+        ]
+      ]
+    },
+    "towerSize": 9
   },
   "temenos": {
     "rect": [
@@ -25,9 +47,104 @@
     "wallHeight": 8,
     "wallThickness": 4,
     "gate": {
-      "side": "east",
-      "at": 0.55
-    }
+      "side": "south",
+      "at": 0.5
+    },
+    "note": "Layout of buildings inside the temenos is simplified from Woolley's plans and the reconstruction this game follows; positions are approximate.",
+    "zigguratCourt": [
+      -252,
+      -316,
+      -158,
+      -212
+    ],
+    "altar": {
+      "center": [
+        -205,
+        -180
+      ],
+      "size": [
+        14,
+        10
+      ],
+      "height": 1.6
+    },
+    "temples": [
+      {
+        "name": "Gipar (temple of Ningal and house of the high priestess)",
+        "rect": [
+          -145,
+          -330,
+          -75,
+          -262
+        ],
+        "cells": [
+          2,
+          1
+        ],
+        "door": "south",
+        "evidence": "inferred"
+      },
+      {
+        "name": "E-nun-mah",
+        "rect": [
+          -145,
+          -250,
+          -95,
+          -218
+        ],
+        "cells": [
+          1,
+          1
+        ],
+        "door": "south",
+        "evidence": "inferred"
+      },
+      {
+        "name": "E-hursag",
+        "rect": [
+          -90,
+          -250,
+          -30,
+          -190
+        ],
+        "cells": [
+          2,
+          2
+        ],
+        "door": "west",
+        "evidence": "inferred"
+      },
+      {
+        "name": "Storerooms and shrine",
+        "rect": [
+          -262,
+          -198,
+          -216,
+          -150
+        ],
+        "cells": [
+          1,
+          2
+        ],
+        "door": "east",
+        "evidence": "inferred"
+      },
+      {
+        "name": "E-dublal-mah (gate and court of justice)",
+        "rect": [
+          -170,
+          -168,
+          -132,
+          -140
+        ],
+        "cells": [
+          1,
+          1
+        ],
+        "door": "north",
+        "evidence": "inferred"
+      }
+    ]
   },
   "ziggurat": {
     "evidence": "inferred",
@@ -35,7 +152,7 @@
       -205,
       -278
     ],
-    "rotation": 45,
+    "rotation": 0,
     "terraces": [
       {
         "width": 62.5,
@@ -55,7 +172,8 @@
         "height": 4.5,
         "batter": 0.5
       }
-    ]
+    ],
+    "note": "The first terrace's size is well established; upper terraces, the triple stair's exact form and the shrine on top are reconstruction."
   },
   "water": {
     "river": {
@@ -107,7 +225,56 @@
           -600
         ]
       }
-    ]
+    ],
+    "innerCanal": {
+      "name": "Canal through the city",
+      "evidence": "inferred",
+      "note": "A depression bisects the mound into north and south halves and may mark a canal through the city (Hammer's survey of Ur); the reconstruction this follows shows one.",
+      "width": 12,
+      "path": [
+        [
+          -312,
+          64
+        ],
+        [
+          -235,
+          44
+        ],
+        [
+          -150,
+          26
+        ],
+        [
+          -60,
+          16
+        ],
+        [
+          40,
+          4
+        ],
+        [
+          140,
+          -20
+        ],
+        [
+          240,
+          -58
+        ],
+        [
+          330,
+          -100
+        ],
+        [
+          395,
+          -130
+        ],
+        [
+          452,
+          -176
+        ]
+      ],
+      "bridgeEvery": 3
+    }
   },
   "streets": {
     "spacing": 34,

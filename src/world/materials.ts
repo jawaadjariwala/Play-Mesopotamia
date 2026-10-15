@@ -68,6 +68,8 @@ interface SurfaceOptions {
   brightness?: number;
   /** Patches of dry grass, for open ground. */
   grass?: number;
+  /** Irrigated fields beyond this oval (radii in metres): plots of crops with furrows and paths. */
+  fields?: { rx: number; rz: number };
   /** Patches where the surface layer has fallen away to show what's underneath. */
   reveal?: { diff: THREE.Texture; scale: number; threshold: number; tint: THREE.ColorRepresentation };
   /** Dark vertical runs where rain has washed mud down from the wall tops. */
@@ -111,7 +113,8 @@ function surfaceFrom({ diff, nor, arm }: Awaited<ReturnType<typeof loadSet>>, op
     const wear = blotches.add(smoothstep(0.0, 1.8, positionWorld.y).oneMinus().mul(0.3));
     const mask = smoothstep(r.threshold, r.threshold + 0.04, wear);
     const rim = smoothstep(r.threshold - 0.07, r.threshold, wear).sub(mask);
-    const under = texture(r.diff, uv().mul(r.scale)).rgb.mul(color(new THREE.Color(r.tint)));
+    const underRaw = texture(r.diff, uv().mul(r.scale)).rgb.mul(color(new THREE.Color(r.tint)));
+    const under = mix(vec3(luminance(underRaw)), underRaw, 0.55);
     base = mix(base.mul(rim.mul(0.35).oneMinus()), under, mask);
   }
   if (opts.streaks) {
@@ -120,6 +123,30 @@ function surfaceFrom({ diff, nor, arm }: Awaited<ReturnType<typeof loadSet>>, op
     const fromTop = smoothstep(1.4, 3.4, positionWorld.y);
     const streak = smoothstep(0.15, 0.6, runs).mul(fromTop).mul(opts.streaks);
     base = base.mul(streak.mul(0.32).oneMinus());
+  }
+  if (opts.fields) {
+    // Plots about 60 x 26 m, turned a little off the city grid, each with its own crop;
+    // furrows run along each plot and earth paths separate them.
+    const outside = smoothstep(1.16, 1.24, positionWorld.xz.div(vec2(opts.fields.rx, opts.fields.rz)).length());
+    const ang = 0.33;
+    const q = vec2(
+      positionWorld.x.mul(Math.cos(ang)).add(positionWorld.z.mul(Math.sin(ang))),
+      positionWorld.z.mul(Math.cos(ang)).sub(positionWorld.x.mul(Math.sin(ang))),
+    );
+    const size = vec2(60, 26);
+    const cell = q.div(size).floor();
+    const h = hash(cell.x.mul(157.3).add(cell.y.mul(311.7)));
+    const young = color(new THREE.Color(0x6f8a45));
+    const ripe = color(new THREE.Color(0xb3a35c));
+    const fallow = color(new THREE.Color(0x9a8869));
+    let crop = mix(young, ripe, smoothstep(0.25, 0.75, h));
+    crop = mix(crop, fallow, step(0.84, h));
+    // Furrows every 1.1 m on planted plots; fallow plots stay flat.
+    const furrows = sin(q.y.mul((Math.PI * 2) / 1.1)).mul(step(h, 0.84).mul(0.07)).add(1);
+    const f = q.div(size).fract().mul(size);
+    const border = step(f.x, 1.4).max(step(size.x.sub(1.4), f.x)).max(step(f.y, 1.1)).max(step(size.y.sub(1.1), f.y));
+    const field = crop.mul(furrows).mul(variation);
+    base = mix(base, mix(field, base, border), outside);
   }
   m.colorNode = mix(base, base.mul(dust).mul(1.6), grime.clamp(0, 0.6));
   return m;
@@ -160,10 +187,10 @@ export async function createMaterials(renderer: THREE.WebGPURenderer): Promise<M
   const bakedBrick = surfaceFrom(brickSet, { variation: 0.15, groundGrime: 0.7, tint: 0xe6d6bc, saturation: 0.45, shaded: true });
   const [mudRoof, ground, timber, bark] = await Promise.all([
     surface('clay_block_wall', aniso, { variation: 0.2, groundGrime: 0, shaded: true, tint: 0xf2e2c8, saturation: 0.55, brightness: 1.3 }),
-    surface('dirt_floor', aniso, { variation: 0.3, groundGrime: 0, normalStrength: 1.2, saturation: 0.6, brightness: 1.15, grass: 0.75 }),
+    surface('dirt_floor', aniso, { variation: 0.3, groundGrime: 0, normalStrength: 1.2, saturation: 0.6, brightness: 1.15, grass: 0.75, fields: { rx: 400, rz: 600 } }),
     // Doors and lintels: palm and poplar planks, sun-bleached.
     surface('weathered_brown_planks', aniso, { variation: 0.15, groundGrime: 0.4, tint: 0xc4ad94, saturation: 0.75 }),
-    surface('bark_willow', aniso, { variation: 0.2, groundGrime: 0.3, tint: 0xcdb89c, saturation: 0.8 }),
+    surface('bark_willow', aniso, { variation: 0.2, groundGrime: 0.3, tint: 0xcdb89c, saturation: 0.8, brightness: 1.5 }),
   ]);
   // Unglazed wheel-thrown pottery: pale buff clay. Reuses the plaster maps for surface texture.
   const pottery = surfaceFrom(plasterSet, { variation: 0.25, groundGrime: 0.5, tint: 0xffe2bd, saturation: 0.9 });

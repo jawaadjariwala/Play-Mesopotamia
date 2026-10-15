@@ -7,11 +7,12 @@ import { Physics } from './engine/physics';
 import { Player } from './player/player';
 import { createMaterials } from './world/materials';
 import { MeshBuilder, rectCorners } from './world/generator/meshBuilder';
-import { buildLandmarks } from './world/landmarks';
+import { buildLandmarks, canalBridges } from './world/landmarks';
 import { CityStreamer } from './world/city/streamer';
 import { StreetGrid } from './world/city/layout';
-import { insideWall, onWater, plan } from './world/city/plan';
-import { buildPalms } from './world/props/palm';
+import { insideWall, insideWallShape, onWater, plan } from './world/city/plan';
+import { buildPalms, CityPalms, FOLIAGE_LAYER } from './world/props/palm';
+import { cityPalmPoints } from './world/city/greenery';
 
 /**
  * Fixed camera poses for screenshots and checks: ?view=street | ziggurat | aerial | wall.
@@ -19,10 +20,17 @@ import { buildPalms } from './world/props/palm';
  */
 function viewPose(view: string, spawn: THREE.Vector3, spawnYaw: number, sunDir: THREE.Vector3) {
   const [zx, zz] = plan.ziggurat.position;
+  const bridge = canalBridges(plan)[2] ?? canalBridges(plan)[0];
+  const across = new THREE.Vector3(-bridge.axis.y, 0, bridge.axis.x);
   const poses: Record<string, { pos: THREE.Vector3; look: THREE.Vector3 }> = {
     street: {
       pos: spawn.clone().setY(1.65),
       look: spawn.clone().add(new THREE.Vector3(-Math.sin(spawnYaw), 0, -Math.cos(spawnYaw)).multiplyScalar(50)).setY(4),
+    },
+    temenos: { pos: new THREE.Vector3(-40, 55, -105), look: new THREE.Vector3(-175, 0, -255) },
+    canal: {
+      pos: new THREE.Vector3(bridge.center.x, 2.2, bridge.center.y).addScaledVector(across, 22).add(new THREE.Vector3(bridge.axis.x * 6, 0, bridge.axis.y * 6)),
+      look: new THREE.Vector3(bridge.center.x, 0.5, bridge.center.y),
     },
     rooftops: { pos: spawn.clone().add(new THREE.Vector3(-30, 24, 26)), look: spawn.clone().add(new THREE.Vector3(-6, 0, -4)) },
     ziggurat: { pos: new THREE.Vector3(zx + 75, 1.65, zz + 70), look: new THREE.Vector3(zx, 14, zz) },
@@ -45,6 +53,7 @@ async function main() {
   const renderer = await createRenderer(q.has('gpu'));
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 6000);
+  camera.layers.enable(FOLIAGE_LAYER);
   const num = (k: string, d: number) => (q.has(k) ? Number(q.get(k)) : d);
   const toneMaps: Record<string, THREE.ToneMapping> = {
     agx: THREE.AgXToneMapping,
@@ -56,8 +65,11 @@ async function main() {
 
   const sky = createSky(renderer, scene, num('elev', 38), num('azim', -50), num('bounce', 5));
   sky.sun.intensity = num('sun', 4);
+  sky.sun.shadow.camera.layers.enable(FOLIAGE_LAYER);
   scene.environmentIntensity = num('env', 0.5);
-  scene.fog = new THREE.FogExp2(0xd9c9ae, num('fog', 0.0011));
+  const fogDensity = num('fog', 0.0011);
+  const fog = new THREE.FogExp2(0xd9c9ae, fogDensity);
+  scene.fog = fog;
 
   loading.textContent = 'Laying out the streets of Ur…';
   const mats = await createMaterials(renderer);
@@ -80,6 +92,9 @@ async function main() {
   scene.add(city.group);
   const palms = buildPalms(plan.palmGroves, mats, (x, z) => onWater(x, z, 4) || insideWall(x, z, 6));
   scene.add(palms.group);
+  const palmPoints = cityPalmPoints(city.blocks);
+  const cityPalms = new CityPalms(palmPoints, mats);
+  scene.add(cityPalms.group);
 
   // Spawn on the street crossing nearest the plan's spawn point, facing the ziggurat.
   const [sx, sz] = new StreetGrid().crossingNear(...plan.spawn.near);
@@ -117,7 +132,7 @@ async function main() {
   }
   stats.extra = () =>
     `${quality.describe()}\nblocks ${city.loadedCount}  build ${city.lastBuildMs.toFixed(1)} ms\n` +
-    `${city.houseCount} houses\n${cpuTimes.shown}`;
+    `${city.houseCount} houses  ${palmPoints.length} city palms\n${cpuTimes.shown}`;
   // Handles for scripted checks (scripts/ and headless probes).
   const zy = THREE.MathUtils.degToRad(plan.ziggurat.rotation ?? 0);
   const stairFoot = new THREE.Vector3(0, 0, plan.ziggurat.terraces[0].depth / 2 + 38)
@@ -129,6 +144,10 @@ async function main() {
     __camera: camera,
     __quality: quality,
     __stairFoot: { x: stairFoot.x, z: stairFoot.z, yaw: zy },
+    __wallTests: landmarks.wallTests,
+    __bridges: canalBridges(plan).map((b) => ({ x: b.center.x, z: b.center.y, ax: b.axis.x, az: b.axis.y, half: b.halfLength })),
+    __scene: scene,
+    __insideWall: (x: number, z: number) => insideWallShape(x, z, 0),
   });
 
   loading.remove();
@@ -180,7 +199,10 @@ async function main() {
     const { x, z } = camera.position;
     city.update(x, z);
     palms.update(x, z);
+    cityPalms.update(x, z);
     followSun(sky, x, z);
+    // Ground-level haze; seen from high up (the ziggurat, aerial views) it thins out.
+    fog.density = fogDensity * (1 - 0.65 * THREE.MathUtils.smoothstep(camera.position.y, 15, 180));
 
     const cpu1 = performance.now();
     pipeline.render();

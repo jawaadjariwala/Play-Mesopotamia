@@ -5,8 +5,25 @@ import type { ZigguratSpec } from '../generator/buildings';
 export type Rect = [number, number, number, number]; // x0, z0, x1, z1
 
 export interface CityPlan {
-  wall: { radiusX: number; radiusZ: number; height: number; baseWidth: number; topWidth: number; gates: number[] };
-  temenos: { rect: Rect; wallHeight: number; wallThickness: number; gate: { side: 'east'; at: number } };
+  wall: {
+    radiusX: number;
+    radiusZ: number;
+    height: number;
+    baseWidth: number;
+    topWidth: number;
+    gates: number[];
+    shape: { vertices: number; waves: [number, number, number][] };
+    towerSize: number;
+  };
+  temenos: {
+    rect: Rect;
+    wallHeight: number;
+    wallThickness: number;
+    gate: { side: 'north' | 'south' | 'east' | 'west'; at: number };
+    zigguratCourt: Rect;
+    altar: { center: [number, number]; size: [number, number]; height: number };
+    temples: TempleSpec[];
+  };
   ziggurat: ZigguratSpec;
   water: {
     river: { x: number; width: number };
@@ -14,10 +31,20 @@ export interface CityPlan {
     /** Links from the harbours out through the wall to the river and canal. */
     channels: { name: string; rect: Rect }[];
     canal: { offset: number; width: number; fromDeg: number; toDeg: number };
+    innerCanal: { name: string; width: number; path: [number, number][]; bridgeEvery: number };
   };
   streets: { spacing: number; jitter: number; laneWidth: number; avenueEvery: number; avenueWidth: number; edgeMargin: number };
   spawn: { near: [number, number]; lookAt: [number, number] };
   palmGroves: GroveSpec[];
+}
+
+export interface TempleSpec {
+  name: string;
+  rect: Rect;
+  /** Courtyard cells across x and z; each cell is a court with rooms around it. */
+  cells: [number, number];
+  door: 'north' | 'south' | 'east' | 'west' | ('north' | 'south' | 'east' | 'west')[];
+  evidence: string;
 }
 
 export const plan = ur as unknown as CityPlan;
@@ -33,15 +60,29 @@ export function rectsOverlap(a: Rect, b: Rect, margin = 0): boolean {
 /** Can a building stand on this footprint? Inside the wall, clear of the temenos and harbours. */
 export function buildable(r: Rect, p: CityPlan = plan): boolean {
   const m = p.streets.edgeMargin;
-  const rx = p.wall.radiusX - m;
-  const rz = p.wall.radiusZ - m;
   for (const [x, z] of [
     [r[0], r[1]],
     [r[2], r[1]],
     [r[2], r[3]],
     [r[0], r[3]],
   ]) {
-    if (!insideEllipse(x, z, rx, rz)) return false;
+    if (!insideWallShape(x, z, m, p)) return false;
+  }
+  // Keep a quay-side strip clear along the canal through the city.
+  const c = p.water.innerCanal;
+  const cx = (r[0] + r[2]) / 2;
+  const cz = (r[1] + r[3]) / 2;
+  const half = Math.hypot(r[2] - r[0], r[3] - r[1]) / 2;
+  if (distanceToPath(cx, cz, c.path) < c.width / 2 + 6 + half) {
+    for (const [x, z] of [
+      [r[0], r[1]],
+      [r[2], r[1]],
+      [r[2], r[3]],
+      [r[0], r[3]],
+      [cx, cz],
+    ]) {
+      if (distanceToPath(x, z, c.path) < c.width / 2 + 6) return false;
+    }
   }
   if (rectsOverlap(r, p.temenos.rect, 12)) return false;
   for (const h of p.water.harbours) if (rectsOverlap(r, h.rect, 8)) return false;
@@ -63,18 +104,60 @@ export function onWater(x: number, z: number, margin = 0, p: CityPlan = plan): b
     const [x0, z0, x1, z1] = h.rect;
     if (x > x0 - margin && x < x1 + margin && z > z0 - margin && z < z1 + margin) return true;
   }
+  if (distanceToPath(x, z, p.water.innerCanal.path) < p.water.innerCanal.width / 2 + margin) return true;
+  // The outer canal follows the wall's outline at a fixed distance outside it.
   const c = p.water.canal;
-  const deg = (Math.atan2(z / (p.wall.radiusZ + c.offset), x / (p.wall.radiusX + c.offset)) * 180) / Math.PI;
+  const th = Math.atan2(z / p.wall.radiusZ, x / p.wall.radiusX);
+  const deg = (th * 180) / Math.PI;
   if (deg >= c.fromDeg && deg <= c.toDeg) {
-    // Distance from the canal centre line, measured in the ellipse's normalised radius.
-    const k = Math.hypot(x / (p.wall.radiusX + c.offset), z / (p.wall.radiusZ + c.offset));
-    const halfWidth = (c.width / 2 + margin) / Math.min(p.wall.radiusX + c.offset, p.wall.radiusZ + c.offset);
-    if (Math.abs(k - 1) < halfWidth) return true;
+    const f = wallFactor(th, p);
+    const ring = Math.hypot((p.wall.radiusX * f + c.offset) * Math.cos(th), (p.wall.radiusZ * f + c.offset) * Math.sin(th));
+    if (Math.abs(Math.hypot(x, z) - ring) < c.width / 2 + margin) return true;
   }
   return false;
 }
 
 /** Inside the city wall's footprint, rampart included. */
 export function insideWall(x: number, z: number, margin = 0, p: CityPlan = plan): boolean {
-  return insideEllipse(x, z, p.wall.radiusX + p.wall.baseWidth / 2 + margin, p.wall.radiusZ + p.wall.baseWidth / 2 + margin);
+  return insideWallShape(x, z, -(p.wall.baseWidth / 2 + margin), p);
+}
+
+/** Multiplier on the oval radius at angle theta (radians): the wall's irregular outline. */
+export function wallFactor(theta: number, p: CityPlan = plan): number {
+  let f = 1;
+  for (const [k, amp, phase] of p.wall.shape.waves) f += amp * Math.sin(k * theta + phase);
+  return f;
+}
+
+/** The wall's vertices (towers stand on them), counter-clockwise from angle -180 degrees. */
+export function wallVertices(p: CityPlan = plan): [number, number][] {
+  const n = p.wall.shape.vertices;
+  return Array.from({ length: n }, (_, k) => {
+    const th = -Math.PI + (2 * Math.PI * k) / n;
+    const f = wallFactor(th, p);
+    return [p.wall.radiusX * f * Math.cos(th), p.wall.radiusZ * f * Math.sin(th)];
+  });
+}
+
+/** Is a point at least `inset` metres inside the wall line? (Negative inset reaches outside it.) */
+export function insideWallShape(x: number, z: number, inset = 0, p: CityPlan = plan): boolean {
+  const { radiusX: rx, radiusZ: rz } = p.wall;
+  const th = Math.atan2(z / rz, x / rx);
+  const k = Math.hypot(x / rx, z / rz);
+  const localRadius = Math.hypot(rx * Math.cos(th), rz * Math.sin(th));
+  return k < wallFactor(th, p) - inset / localRadius;
+}
+
+/** Shortest distance from a point to a polyline. */
+export function distanceToPath(x: number, z: number, path: [number, number][]): number {
+  let best = Infinity;
+  for (let i = 0; i < path.length - 1; i++) {
+    const [ax, az] = path[i];
+    const [bx, bz] = path[i + 1];
+    const dx = bx - ax;
+    const dz = bz - az;
+    const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz)));
+    best = Math.min(best, Math.hypot(x - (ax + dx * t), z - (az + dz * t)));
+  }
+  return best;
 }

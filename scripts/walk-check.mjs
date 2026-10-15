@@ -35,28 +35,30 @@ await page.evaluate(async () => {
 });
 await page.keyboard.down('ShiftLeft'); await page.keyboard.down('KeyW'); await new Promise((r) => setTimeout(r, 16000)); await page.keyboard.up('KeyW'); await page.keyboard.up('ShiftLeft');
 console.log('after running up the ziggurat stair', await pos(), '(expect y near 11.9)');
-// Try to leave the city: run straight at the wall from just inside it at every gate and
-// everywhere water passes through (where the rampart is open). Nobody should get out.
-const RX = 400, RZ = 600, HALF_BASE = 9;
-const angles = [-95, 0, 85, 180, 171, 174, 177, -98, -93, -88];
+// Try to leave the city: from just inside the wall, run straight out at every gate, every
+// opening where water passes through, and a sample of plain wall. Nobody should get out.
+const tests = await page.evaluate(() => window.__wallTests);
 let escapes = 0;
-for (const deg of angles) {
-  const a = (deg * Math.PI) / 180;
-  const wx = RX * Math.cos(a), wz = RZ * Math.sin(a);
-  const n = [wx / (RX * RX), wz / (RZ * RZ)];
-  const len = Math.hypot(...n);
-  const [nx, nz] = [n[0] / len, n[1] / len];
-  const sx = wx - nx * (HALF_BASE + 6), sz = wz - nz * (HALF_BASE + 6);
-  const yaw = Math.atan2(-nx, -nz); // face outward
-  await page.evaluate((x, z, yaw) => window.__player.teleport(x, z, yaw), sx, sz, yaw);
+for (const t of tests) {
+  await page.evaluate((x, z, yaw) => window.__player.teleport(x, z, yaw), t.x, t.z, t.yaw);
   await page.keyboard.down('ShiftLeft'); await page.keyboard.down('KeyW');
-  await new Promise((r) => setTimeout(r, 5000));
+  await new Promise((r) => setTimeout(r, 4500));
   await page.keyboard.up('KeyW'); await page.keyboard.up('ShiftLeft');
   const p = await pos();
-  const outside = (p[0] / RX) ** 2 + (p[2] / RZ) ** 2 > 1;
-  if (outside) escapes++;
-  console.log(`escape attempt at ${deg} deg:`, p, outside ? 'GOT OUT' : 'stayed in');
+  const inside = await page.evaluate((x, z) => window.__insideWall(x, z), p[0], p[2]);
+  if (!inside) escapes++;
+  if (!inside) console.log(`ESCAPED at a ${t.kind}:`, p);
 }
-console.log(escapes === 0 ? 'wall holds everywhere tested' : `${escapes} ESCAPES`);
+console.log(escapes === 0 ? `wall holds at all ${tests.length} tested spots (gates, water openings, wall)` : `${escapes} ESCAPES of ${tests.length}`);
+// Walk across a canal bridge: start on one bank, end up on the other.
+const br = await page.evaluate(() => window.__bridges[2] ?? window.__bridges[0]);
+if (br) {
+  const sx = br.x - br.ax * (br.half + 3), sz = br.z - br.az * (br.half + 3);
+  await page.evaluate((x, z, yaw) => window.__player.teleport(x, z, yaw), sx, sz, Math.atan2(-br.ax, -br.az));
+  await page.keyboard.down('KeyW'); await new Promise((r) => setTimeout(r, Math.ceil(((br.half + 3) * 2 / 1.7) * 1000) + 800)); await page.keyboard.up('KeyW');
+  const p = await pos();
+  const progressed = (p[0] - sx) * br.ax + (p[2] - sz) * br.az;
+  console.log(`bridge crossing: moved ${progressed.toFixed(1)} m along the bridge (span ${(br.half * 2).toFixed(1)} m)`, progressed > br.half * 2 ? 'crossed (good)' : 'BLOCKED');
+}
 console.log('errors:', errs.slice(0, 3));
 await browser.close();

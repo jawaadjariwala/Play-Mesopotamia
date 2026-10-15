@@ -13,9 +13,9 @@ const SECTOR = 4;
 
 
 /** Blocks closer than this are built in full detail; farther ones fall back to massing. */
-const LOAD_RADIUS = 75;
+const LOAD_RADIUS = 60;
 /** Hysteresis so a block on the boundary doesn't rebuild every step. */
-const UNLOAD_RADIUS = 95;
+const UNLOAD_RADIUS = 78;
 
 export interface ColliderSink {
   add(boxes: ColliderBox[]): unknown;
@@ -88,7 +88,7 @@ export class CityStreamer {
   ) {
     this.group.name = 'city';
     this.blocks = generateBlocks();
-    this.houses = this.blocks.map((b) => b.plots.map((p, k) => houseForPlot(p, `house-${b.i}-${b.j}-${k}`)));
+    this.houses = this.blocks.map((b) => b.plots.filter((p) => !p.open).map((p, k) => houseForPlot(p, `house-${b.i}-${b.j}-${k}`)));
     this.pottery = new PotteryPool(mats);
     this.group.add(this.pottery.group);
     this.buildMassing();
