@@ -1,7 +1,7 @@
 import { mulberry32 } from '../props/random';
 import { canalBridges } from '../landmarks';
 import type { Block } from './layout';
-import { insideWall, onWater, plan, type CityPlan } from './plan';
+import { insideWall, onWater, plan, wallFactor, type CityPlan } from './plan';
 
 /**
  * Where palms grow inside the city: along the canal banks, in palm gardens, and now and
@@ -37,5 +37,47 @@ export function cityPalmPoints(blocks: Block[], p: CityPlan = plan, seed = 99): 
       }
     }
   }
+  return pts;
+}
+
+/**
+ * Belts of palms along the Euphrates and the outer canal, a few rows deep on each bank,
+ * thinning out with distance from the city. Outside the walls only.
+ */
+export function bankPalmPoints(p: CityPlan = plan, seed = 7): [number, number][] {
+  const rand = mulberry32(seed);
+  const pts: [number, number][] = [];
+  const along = (path: [number, number][], half: number, rows: number) => {
+    for (let i = 0; i < path.length - 1; i++) {
+      const [ax, az] = path[i];
+      const [bx, bz] = path[i + 1];
+      const len = Math.hypot(bx - ax, bz - az);
+      const [dx, dz] = [(bx - ax) / len, (bz - az) / len];
+      for (let d = 0; d < len; d += 5 + rand() * 4) {
+        for (const side of [-1, 1]) {
+          for (let r = 0; r < rows; r++) {
+            if (rand() < 0.15 + r * 0.12) continue;
+            const off = side * (half + 9 + r * 9 + rand() * 7);
+            const x = ax + dx * d - dz * off;
+            const z = az + dz * d + dx * off;
+            if (Math.hypot(x, z) > 2100) continue;
+            if (insideWall(x, z, 12, p) || onWater(x, z, 8, p)) continue;
+            pts.push([x, z]);
+          }
+        }
+      }
+    }
+  };
+  along(p.water.river.path, p.water.river.width / 2, 5);
+  // The outer canal, sampled along its arc.
+  const c = p.water.canal;
+  const arc: [number, number][] = [];
+  for (let k = 0; k <= 60; k++) {
+    const deg = c.fromDeg + ((c.toDeg - c.fromDeg) * k) / 60;
+    const th = (deg * Math.PI) / 180;
+    const f = wallFactor(th, p);
+    arc.push([(p.wall.radiusX * f + c.offset) * Math.cos(th), (p.wall.radiusZ * f + c.offset) * Math.sin(th)]);
+  }
+  along(arc, c.width / 2, 2);
   return pts;
 }

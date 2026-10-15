@@ -29,7 +29,7 @@ const BASE = import.meta.env.BASE_URL;
  * flat surfaces use (x, z). `period` is the world size of one tile in metres
  * (features are about period / 8); a second value stretches it vertically.
  */
-const noiseTex = createNoiseTexture();
+export const noiseTex = createNoiseTexture();
 const worldCoord = mix(
   vec2(positionWorld.x.add(positionWorld.z), positionWorld.y),
   positionWorld.xz,
@@ -136,17 +136,24 @@ function surfaceFrom({ diff, nor, arm }: Awaited<ReturnType<typeof loadSet>>, op
     const size = vec2(60, 26);
     const cell = q.div(size).floor();
     const h = hash(cell.x.mul(157.3).add(cell.y.mul(311.7)));
-    const young = color(new THREE.Color(0x6f8a45));
-    const ripe = color(new THREE.Color(0xb3a35c));
-    const fallow = color(new THREE.Color(0x9a8869));
+    // Muted, earthy crop colours: young barley, ripening grain, and fallow ground.
+    const young = color(new THREE.Color(0x7d8752));
+    const ripe = color(new THREE.Color(0xb3a673));
+    const fallow = color(new THREE.Color(0xa2927a));
     let crop = mix(young, ripe, smoothstep(0.25, 0.75, h));
     crop = mix(crop, fallow, step(0.84, h));
     // Furrows every 1.1 m on planted plots; fallow plots stay flat.
     const furrows = sin(q.y.mul((Math.PI * 2) / 1.1)).mul(step(h, 0.84).mul(0.07)).add(1);
     const f = q.div(size).fract().mul(size);
     const border = step(f.x, 1.4).max(step(size.x.sub(1.4), f.x)).max(step(f.y, 1.1)).max(step(size.y.sub(1.1), f.y));
-    const field = crop.mul(furrows).mul(variation);
-    base = mix(base, mix(field, base, border), outside);
+    // Each field a little lighter or darker than its neighbours; some edges are wet irrigation ditches.
+    const shadeVar = hash(cell.x.mul(91.7).add(cell.y.mul(47.3))).mul(0.18).add(0.91);
+    const field = crop.mul(furrows).mul(variation).mul(shadeVar);
+    const ditch = step(0.6, hash(cell.y.mul(13.1).add(cell.x.mul(3.7)))).mul(step(f.y, 1.1));
+    const edge = mix(base, base.mul(vec3(0.55, 0.58, 0.5)), ditch);
+    base = mix(base, mix(field, edge, border), outside);
+    // Damp, darker earth on banks that slope down toward the water.
+    base = mix(base, base.mul(vec3(0.62, 0.6, 0.5)), smoothstep(0.05, 0.9, positionWorld.y.negate()));
   }
   m.colorNode = mix(base, base.mul(dust).mul(1.6), grime.clamp(0, 0.6));
   return m;
@@ -186,7 +193,8 @@ export async function createMaterials(renderer: THREE.WebGPURenderer): Promise<M
   // Ur's baked bricks are a pale buff, not the orange of modern fired brick.
   const bakedBrick = surfaceFrom(brickSet, { variation: 0.15, groundGrime: 0.7, tint: 0xe6d6bc, saturation: 0.45, shaded: true });
   const [mudRoof, ground, timber, bark] = await Promise.all([
-    surface('clay_block_wall', aniso, { variation: 0.2, groundGrime: 0, shaded: true, tint: 0xf2e2c8, saturation: 0.55, brightness: 1.3 }),
+    // Roofs were finished in the same mud plaster as the walls.
+    Promise.resolve(surfaceFrom(plasterSet, { variation: 0.25, groundGrime: 0, shaded: true, tint: 0xfff2de, saturation: 0.6, brightness: 1.3 })),
     surface('dirt_floor', aniso, { variation: 0.3, groundGrime: 0, normalStrength: 1.2, saturation: 0.6, brightness: 1.15, grass: 0.75, fields: { rx: 400, rz: 600 } }),
     // Doors and lintels: palm and poplar planks, sun-bleached.
     surface('weathered_brown_planks', aniso, { variation: 0.15, groundGrime: 0.4, tint: 0xc4ad94, saturation: 0.75 }),

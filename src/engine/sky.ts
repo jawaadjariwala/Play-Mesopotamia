@@ -8,6 +8,7 @@ const SKY_BRIGHTNESS = 0.5;
 export interface SkyRig {
   sun: THREE.DirectionalLight;
   sunDirection: THREE.Vector3;
+  setClouds(coverage: number): void;
 }
 
 /**
@@ -70,7 +71,7 @@ export function createSky(
   scene.environment = pmrem.fromScene(envScene, 0.02, 0.1, 10000).texture;
   scene.environmentIntensity = 0.55;
 
-  const sun = new THREE.DirectionalLight(0xfff1dc, 3.2);
+  const sun = new THREE.DirectionalLight(0xffe6c4, 3.2);
   sun.position.copy(sunDirection).multiplyScalar(120);
   sun.castShadow = true;
   // A tight shadow box that follows the player (see followSun); far shadows fade into the haze anyway.
@@ -87,7 +88,7 @@ export function createSky(
   sun.shadow.radius = 3;
   scene.add(sun, sun.target);
 
-  return { sun, sunDirection };
+  return { sun, sunDirection, setClouds: (c: number) => (visible.cloudCoverage.value = c) };
 }
 
 /** Keep the shadow box centred on the player, snapped to whole shadow-map texels to avoid shimmer. */

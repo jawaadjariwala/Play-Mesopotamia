@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import type { Materials } from '../materials';
 import { mulberry32 } from './random';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 /**
  * Procedural date palms (Phoenix dactylifera): a ringed, slightly leaning trunk,
@@ -18,6 +19,8 @@ interface PalmShape {
   leafWidth: number;
   /** Geometry detail: trunk sides and rachis segments. */
   far?: boolean;
+  /** Dead fronds hanging under the crown (default 6). */
+  dead?: number;
   seed: number;
 }
 
@@ -79,7 +82,7 @@ function frondGeometry(shape: PalmShape): THREE.BufferGeometry {
     }
   };
 
-  const total = shape.fronds + 6;
+  const total = shape.fronds + (shape.dead ?? 6);
   for (let i = 0; i < total; i++) {
     const dead = i >= shape.fronds;
     const age = dead ? 1 : i / shape.fronds; // 0 = young and upright, 1 = old and drooping
@@ -192,6 +195,8 @@ export function buildPalms(
   groves: GroveSpec[],
   mats: Materials,
   exclude?: (x: number, z: number) => boolean,
+  impostor?: PalmImpostor,
+  heightAt: (x: number, z: number) => number = () => 0,
   seed = 7,
 ): Palms {
   const rand = mulberry32(seed);
@@ -231,12 +236,17 @@ export function buildPalms(
       const pos = new THREE.Vector3(grove.center[0] + Math.cos(a) * r, 0, grove.center[1] + Math.sin(a) * r);
       // Palms grow on the banks, not in the water or on the city wall.
       if (exclude?.(pos.x, pos.z)) continue;
+      pos.y = heightAt(pos.x, pos.z) - 0.1;
       const rot = new THREE.Quaternion().setFromAxisAngle(UP, rand() * Math.PI * 2);
       const sc = 0.8 + rand() * 0.45;
       matrices.push(new THREE.Matrix4().compose(pos, rot, new THREE.Vector3(sc, sc, sc)));
     }
     const near = instanced(nearGeoms, matrices, true);
-    const far = instanced(farGeoms, matrices, false);
+    const far = impostor ? (() => {
+      const g = new THREE.Group();
+      g.add(impostorMesh(impostor, matrices));
+      return g;
+    })() : instanced(farGeoms, matrices, false);
     near.visible = false;
     group.add(near, far);
     entries.push({ grove, near, far });
@@ -274,6 +284,7 @@ export class CityPalms {
   constructor(
     private points: [number, number][],
     mats: Materials,
+    impostor?: PalmImpostor,
     seed = 21,
   ) {
     this.group.name = 'city-palms';
@@ -298,16 +309,23 @@ export class CityPalms {
           return mesh;
         }),
       );
-    // Far: every palm, split across the far shapes.
-    const farCounts = CITY_FAR_SHAPES.map((_, si) => points.filter((_, i) => i % CITY_FAR_SHAPES.length === si).length);
-    const farMeshes = make(CITY_FAR_SHAPES, farCounts, false);
-    const used = CITY_FAR_SHAPES.map(() => 0);
-    points.forEach((_, i) => {
-      const si = i % CITY_FAR_SHAPES.length;
-      const slot = used[si]++;
-      for (const m of farMeshes[si]) m.setMatrixAt(slot, this.matrices[i]);
-      this.far.push({ meshes: farMeshes[si], slot });
-    });
+    // Far: every palm, as a cut-out card when we have one, otherwise a light 3D palm.
+    if (impostor) {
+      const mesh = impostorMesh(impostor, this.matrices);
+      mesh.frustumCulled = false;
+      this.group.add(mesh);
+      points.forEach((_, i) => this.far.push({ meshes: [mesh], slot: i }));
+    } else {
+      const farCounts = CITY_FAR_SHAPES.map((_, si) => points.filter((_, i) => i % CITY_FAR_SHAPES.length === si).length);
+      const farMeshes = make(CITY_FAR_SHAPES, farCounts, false);
+      const used = CITY_FAR_SHAPES.map(() => 0);
+      points.forEach((_, i) => {
+        const si = i % CITY_FAR_SHAPES.length;
+        const slot = used[si]++;
+        for (const m of farMeshes[si]) m.setMatrixAt(slot, this.matrices[i]);
+        this.far.push({ meshes: farMeshes[si], slot });
+      });
+    }
     // Near: a fixed pool per shape.
     const POOL = 60;
     this.nearMeshes = make(NEAR_SHAPES, NEAR_SHAPES.map(() => POOL), true);
@@ -354,4 +372,91 @@ export class CityPalms {
       for (const m of this.nearMeshes[si]) m.count = top;
     });
   }
+}
+
+/**
+ * A cut-out picture of one detailed palm, rendered once at startup, used on three crossed
+ * cards for distant palms: 6 triangles instead of hundreds, and fuller-looking at range.
+ */
+export interface PalmImpostor {
+  geometry: THREE.BufferGeometry;
+  material: THREE.Material;
+}
+
+export function makePalmImpostor(renderer: THREE.WebGPURenderer, mats: Materials): PalmImpostor {
+  // Broader leaflets than the 3D palms: at a distance thin leaflets fade out of the cut-out
+  // and the palm turns into a bare stick.
+  const shape: PalmShape = { height: 9.5, lean: 0, fronds: 30, pairs: 22, leafWidth: 0.3, dead: 0, seed: 77 };
+  const W = 12;
+  const H = 14.4;
+  const scene = new THREE.Scene();
+  const palm = new THREE.Group();
+  palm.add(new THREE.Mesh(trunkGeometry(shape), mats.bark), new THREE.Mesh(frondGeometry(shape), mats.frond));
+  scene.add(palm);
+  // Lit like midday in the game: sun from the front and above, warm sky fill.
+  const sun = new THREE.DirectionalLight(0xffe6c4, 5.5);
+  sun.position.set(2, 6, 5);
+  scene.add(sun, new THREE.HemisphereLight(0xcfe0ff, 0x9a8462, 3));
+  const cam = new THREE.OrthographicCamera(-W / 2, W / 2, H - 0.3, -0.3, 0.1, 50);
+  cam.position.set(0, 0, 20);
+  cam.lookAt(0, 0, 0);
+  // No mipmaps: averaging the sparse crown down to small sizes erases the fronds and leaves
+  // only the trunk. Without them distant palms keep their crowns (at the cost of a little shimmer).
+  const rt = new THREE.RenderTarget(256, Math.round((256 * H) / W), { generateMipmaps: false, minFilter: THREE.LinearFilter });
+  const prevTarget = renderer.getRenderTarget();
+  const prevClear = renderer.getClearColor(new THREE.Color());
+  const prevAlpha = renderer.getClearAlpha();
+  const prevTone = renderer.toneMapping;
+  renderer.setClearColor(0x000000, 0);
+  renderer.setRenderTarget(rt);
+  renderer.clear();
+  renderer.render(scene, cam);
+  renderer.setRenderTarget(prevTarget);
+  renderer.setClearColor(prevClear, prevAlpha);
+  renderer.toneMapping = prevTone;
+
+  const material = new THREE.MeshBasicNodeMaterial({ map: rt.texture, alphaTest: 0.22, side: THREE.DoubleSide });
+  // The captured image comes out upside down (on both backends), so flip the cards to match.
+  const flip = true;
+  const cards = [0, Math.PI / 3, (2 * Math.PI) / 3].map((a) => {
+    const g = new THREE.PlaneGeometry(W, H);
+    if (flip) {
+      const uv = g.attributes.uv as THREE.BufferAttribute;
+      for (let i = 0; i < uv.count; i++) uv.setY(i, 1 - uv.getY(i));
+    }
+    g.translate(0, H / 2 - 0.3, 0);
+    g.rotateY(a);
+    return g;
+  });
+  const geometry = mergeGeometries(cards)!;
+  return { geometry, material };
+}
+
+/** Instanced cut-out palms at the given placements. */
+export function impostorMesh(imp: PalmImpostor, matrices: THREE.Matrix4[]): THREE.InstancedMesh {
+  const mesh = new THREE.InstancedMesh(imp.geometry, imp.material, Math.max(1, matrices.length));
+  matrices.forEach((m, i) => mesh.setMatrixAt(i, m));
+  mesh.count = matrices.length;
+  mesh.castShadow = false;
+  mesh.receiveShadow = false;
+  mesh.layers.set(FOLIAGE_LAYER);
+  mesh.computeBoundingSphere();
+  return mesh;
+}
+
+/** Belts of palms along the river and canal banks, all as cut-out cards. */
+export function buildPalmBelt(
+  points: [number, number][],
+  imp: PalmImpostor,
+  heightAt: (x: number, z: number) => number = () => 0,
+  seed = 5,
+): THREE.InstancedMesh {
+  const rand = mulberry32(seed);
+  const matrices = points.map(([x, z]) => {
+    const s = 0.75 + rand() * 0.5;
+    return new THREE.Matrix4().compose(new THREE.Vector3(x, heightAt(x, z) - 0.1, z), new THREE.Quaternion().setFromAxisAngle(UP, rand() * Math.PI * 2), new THREE.Vector3(s, s, s));
+  });
+  const mesh = impostorMesh(imp, matrices);
+  mesh.name = 'palm-belts';
+  return mesh;
 }

@@ -9,6 +9,12 @@ import {
   renderOutput,
   sample,
   screenUV,
+  dot,
+  mix,
+  smoothstep,
+  vec2,
+  vec3,
+  vec4,
 } from 'three/tsl';
 import { ao } from 'three/addons/tsl/display/GTAONode.js';
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
@@ -43,9 +49,15 @@ export function createPipeline(
 ): THREE.RenderPipeline {
   const pipeline = new THREE.RenderPipeline(renderer);
   pipeline.outputColorTransform = false;
+  // Debug: ?nofx renders the scene straight to the screen (no bloom, no FXAA, no AO).
+  if (new URLSearchParams(location.search).has('nofx')) {
+    pipeline.outputColorTransform = true;
+    pipeline.outputNode = pass(scene, camera);
+    return pipeline;
+  }
   if (!options.ao) {
     const color = pass(scene, camera).getTextureNode();
-    pipeline.outputNode = fxaa(renderOutput(color.add(bloom(color, 0.05, 0.25, 1.4))));
+    pipeline.outputNode = fxaa(grade(renderOutput(color.add(bloom(color, 0.05, 0.25, 1.4)))));
     return pipeline;
   }
   const prePass = pass(scene, camera);
@@ -62,6 +74,23 @@ export function createPipeline(
   const color = scenePass.getTextureNode();
   const glow = bloom(color, 0.05, 0.25, 1.4);
 
-  pipeline.outputNode = fxaa(renderOutput(color.add(glow)));
+  pipeline.outputNode = fxaa(grade(renderOutput(color.add(glow))));
   return pipeline;
+}
+
+/**
+ * A light colour grade on the final (display-space) image: a touch more richness, slightly
+ * warm shadows and cool highlights kept in check, gentle contrast, and a soft vignette.
+ */
+function grade(c: ReturnType<typeof renderOutput>) {
+  const rgb = c.rgb;
+  const lum = dot(rgb, vec3(0.2126, 0.7152, 0.0722));
+  let g = mix(vec3(lum), rgb, 1.1);
+  // Warm the darker tones a little, leave highlights alone.
+  g = g.add(vec3(0.018, 0.008, -0.012).mul(lum.oneMinus()));
+  // Gentle S-curve.
+  g = g.sub(0.5).mul(1.05).add(0.5);
+  const v = smoothstep(0.45, 1.05, screenUV.sub(0.5).mul(vec2(1.25, 1)).length().mul(1.35));
+  g = g.mul(v.mul(0.22).oneMinus());
+  return vec4(g.clamp(0, 1), c.a);
 }

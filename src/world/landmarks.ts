@@ -12,6 +12,7 @@ import {
 } from './generator/buildings';
 import { insideWall, onWater, wallFactor, wallVertices, type CityPlan, type Rect, type TempleSpec } from './city/plan';
 import { StreetGrid } from './city/layout';
+import { OUTER_WATER_LEVEL } from './terrain';
 
 /**
  * The fixed, hand-placed parts of Ur: the city wall with its gates, the temenos and
@@ -258,8 +259,8 @@ export function buildLandmarks(plan: CityPlan, mats: Materials, waterMat: THREE.
     const c = rectCorners(r[0], r[1], r[2], r[3], 0.06);
     water.quad(c[0], c[1], c[2], c[3]);
   };
-  const river = plan.water.river;
-  sheet([river.x - river.width / 2, -2000, river.x + river.width / 2, 2000]);
+  // The Euphrates: a ribbon along its course, sitting down between its banks.
+  ribbon(water, plan.water.river.path, plan.water.river.width / 2, OUTER_WATER_LEVEL);
   const quays = createBuilders();
   for (const h of plan.water.harbours) {
     sheet(h.rect);
@@ -364,7 +365,7 @@ export function buildLandmarks(plan: CityPlan, mats: Materials, waterMat: THREE.
     const ring = (deg: number, s: number) => {
       const a = THREE.MathUtils.degToRad(deg);
       const f = wallFactor(a, plan);
-      return new THREE.Vector3((plan.wall.radiusX * f + cn.offset + s) * Math.cos(a), 0.06, (plan.wall.radiusZ * f + cn.offset + s) * Math.sin(a));
+      return new THREE.Vector3((plan.wall.radiusX * f + cn.offset + s) * Math.cos(a), OUTER_WATER_LEVEL, (plan.wall.radiusZ * f + cn.offset + s) * Math.sin(a));
     };
     const w = cn.width / 2;
     water.quad(ring(d0, -w), ring(d1, -w), ring(d1, w), ring(d0, w));
@@ -512,4 +513,20 @@ function addCompound(temple: TempleSpec, b: ReturnType<typeof createBuilders>): 
     for (const [tx, tz] of pts) out.push(...addBuilding(towerSpec(tx, tz, 3.4, H + 2), b));
   }
   return out;
+}
+
+/** A water ribbon of half-width `half` along a polyline, mitred at the bends. */
+function ribbon(b: MeshBuilder, path: [number, number][], half: number, y: number) {
+  const pts = path.map(([x, z]) => new THREE.Vector2(x, z));
+  const normalAt = (i: number) => {
+    const d0 = i > 0 ? pts[i].clone().sub(pts[i - 1]).normalize() : pts[1].clone().sub(pts[0]).normalize();
+    const d1 = i < pts.length - 1 ? pts[i + 1].clone().sub(pts[i]).normalize() : d0;
+    const d = d0.add(d1).normalize();
+    return new THREE.Vector2(-d.y, d.x);
+  };
+  for (let i = 0; i < pts.length - 1; i++) {
+    const [na, nb] = [normalAt(i), normalAt(i + 1)];
+    const P = (p: THREE.Vector2, nn: THREE.Vector2, s: number) => new THREE.Vector3(p.x + nn.x * s, y, p.y + nn.y * s);
+    b.quad(P(pts[i], na, half), P(pts[i + 1], nb, half), P(pts[i + 1], nb, -half), P(pts[i], na, -half));
+  }
 }

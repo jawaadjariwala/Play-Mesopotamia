@@ -177,8 +177,51 @@
   },
   "water": {
     "river": {
-      "x": -545,
-      "width": 170
+      "name": "Euphrates",
+      "width": 150,
+      "note": "The Euphrates ran along the west side of the city; this course is illustrative.",
+      "path": [
+        [
+          -440,
+          -2600
+        ],
+        [
+          -505,
+          -1800
+        ],
+        [
+          -600,
+          -1150
+        ],
+        [
+          -570,
+          -600
+        ],
+        [
+          -528,
+          -180
+        ],
+        [
+          -548,
+          260
+        ],
+        [
+          -615,
+          720
+        ],
+        [
+          -560,
+          1300
+        ],
+        [
+          -470,
+          1950
+        ],
+        [
+          -500,
+          2600
+        ]
+      ]
     },
     "harbours": [
       {

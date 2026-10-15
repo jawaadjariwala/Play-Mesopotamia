@@ -6,14 +6,16 @@ import { QualityGovernor } from './engine/adaptiveResolution';
 import { Physics } from './engine/physics';
 import { Player } from './player/player';
 import { createMaterials } from './world/materials';
+import { createWaterMaterial } from './world/water';
+import { buildTerrain, terrainHeight } from './world/terrain';
 import { MeshBuilder, rectCorners } from './world/generator/meshBuilder';
 import { buildLandmarks, canalBridges } from './world/landmarks';
 import { CityStreamer } from './world/city/streamer';
 import { StreetGrid } from './world/city/layout';
 import { insideWall, insideWallShape, onWater, plan } from './world/city/plan';
 import { GameUI, type Place } from './ui/ui';
-import { buildPalms, CityPalms, FOLIAGE_LAYER } from './world/props/palm';
-import { cityPalmPoints } from './world/city/greenery';
+import { buildPalmBelt, buildPalms, CityPalms, FOLIAGE_LAYER, makePalmImpostor } from './world/props/palm';
+import { bankPalmPoints, cityPalmPoints } from './world/city/greenery';
 
 /**
  * Fixed camera poses for screenshots and checks: ?view=street | ziggurat | aerial | wall.
@@ -28,6 +30,8 @@ function viewPose(view: string, spawn: THREE.Vector3, spawnYaw: number, sunDir: 
       pos: spawn.clone().setY(1.65),
       look: spawn.clone().add(new THREE.Vector3(-Math.sin(spawnYaw), 0, -Math.cos(spawnYaw)).multiplyScalar(50)).setY(4),
     },
+    // A drone's-eye start frame for the intro video: over the river and fields, toward the temple district.
+    intro: { pos: new THREE.Vector3(-560, 75, 260), look: new THREE.Vector3(-170, 8, -230) },
     temenos: { pos: new THREE.Vector3(-40, 55, -105), look: new THREE.Vector3(-175, 0, -255) },
     canal: {
       pos: new THREE.Vector3(bridge.center.x, 2.2, bridge.center.y).addScaledVector(across, 22).add(new THREE.Vector3(bridge.axis.x * 6, 0, bridge.axis.y * 6)),
@@ -64,8 +68,11 @@ async function main() {
   renderer.toneMapping = toneMaps[q.get('tm') ?? 'aces'] ?? THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = num('exp', 0.9);
 
-  const sky = createSky(renderer, scene, num('elev', 38), num('azim', -50), num('bounce', 5));
+  const sky = createSky(renderer, scene, num('elev', 42), num('azim', -50), num('bounce', 5));
   sky.sun.intensity = num('sun', 4);
+  // Debug switches for finding per-pixel costs.
+  if (q.has('noshadow')) renderer.shadowMap.enabled = false;
+  if (q.has('noclouds')) sky.setClouds(0);
   sky.sun.shadow.camera.layers.enable(FOLIAGE_LAYER);
   scene.environmentIntensity = num('env', 0.5);
   const fogDensity = num('fog', 0.0011);
@@ -74,15 +81,10 @@ async function main() {
 
   loading.textContent = 'Laying out the streets of Ur…';
   const mats = await createMaterials(renderer);
-  const waterMat = new THREE.MeshStandardNodeMaterial({ color: 0x4d5c4c, roughness: 0.07, metalness: 0 });
+  const waterMat = createWaterMaterial();
   const physics = await Physics.create();
 
-  const ground = new MeshBuilder(3.5);
-  const g = rectCorners(-2500, -2500, 2500, 2500, 0);
-  ground.quad(g[0], g[1], g[2], g[3]);
-  const groundMesh = new THREE.Mesh(ground.build(), mats.ground);
-  groundMesh.receiveShadow = true;
-  scene.add(groundMesh);
+  scene.add(buildTerrain(plan, mats.ground));
 
   const landmarks = buildLandmarks(plan, mats, waterMat);
   scene.add(landmarks.group);
@@ -91,11 +93,15 @@ async function main() {
   const city = new CityStreamer(mats, physics);
   city.compile = (group) => renderer.compileAsync(group, camera, scene);
   scene.add(city.group);
-  const palms = buildPalms(plan.palmGroves, mats, (x, z) => onWater(x, z, 4) || insideWall(x, z, 6));
+  // Distant palms are cut-out cards of one detailed palm, captured here once.
+  const impostor = makePalmImpostor(renderer, mats);
+  const ground = (x: number, z: number) => terrainHeight(x, z, plan);
+  const palms = buildPalms(plan.palmGroves, mats, (x, z) => onWater(x, z, 8) || insideWall(x, z, 6), impostor, ground);
   scene.add(palms.group);
   const palmPoints = cityPalmPoints(city.blocks);
-  const cityPalms = new CityPalms(palmPoints, mats);
+  const cityPalms = new CityPalms(palmPoints, mats, impostor);
   scene.add(cityPalms.group);
+  scene.add(buildPalmBelt(bankPalmPoints(plan), impostor, ground));
 
   // Spawn on the street crossing nearest the plan's spawn point, facing the ziggurat.
   const [sx, sz] = new StreetGrid().crossingNear(...plan.spawn.near);
@@ -134,8 +140,8 @@ async function main() {
   const pipelines = { ao: createPipeline(renderer, scene, camera, { ao: true }), plain: createPipeline(renderer, scene, camera, { ao: false }) };
   let pipeline = q.has('noao') ? pipelines.plain : pipelines.ao;
   const stats = new StatsOverlay(renderer, isWebGPU(renderer) ? 'WebGPU' : 'WebGL 2 fallback');
-  // The performance overlay is for development: ?stats shows it (fixed views always do).
-  stats.visible = q.has('stats') || Boolean(pose);
+  // The performance overlay is for development: ?stats shows it.
+  stats.visible = q.has('stats');
   const quality = new QualityGovernor(renderer, (ao) => {
     pipeline = ao && !q.has('noao') ? pipelines.ao : pipelines.plain;
   });

@@ -26,7 +26,7 @@ export interface CityPlan {
   };
   ziggurat: ZigguratSpec;
   water: {
-    river: { x: number; width: number };
+    river: { name: string; width: number; path: [number, number][] };
     harbours: { name: string; rect: Rect }[];
     /** Links from the harbours out through the wall to the river and canal. */
     channels: { name: string; rect: Rect }[];
@@ -99,7 +99,7 @@ export function distanceToRect(x: number, z: number, r: Rect): number {
 /** Is this point on water (river, canal, harbours, channels)? Used to keep props off it. */
 export function onWater(x: number, z: number, margin = 0, p: CityPlan = plan): boolean {
   const r = p.water.river;
-  if (Math.abs(x - r.x) < r.width / 2 + margin) return true;
+  if (distanceToPath(x, z, r.path) < r.width / 2 + margin) return true;
   for (const h of [...p.water.harbours, ...p.water.channels]) {
     const [x0, z0, x1, z1] = h.rect;
     if (x > x0 - margin && x < x1 + margin && z > z0 - margin && z < z1 + margin) return true;
@@ -160,4 +160,15 @@ export function distanceToPath(x: number, z: number, path: [number, number][]): 
     best = Math.min(best, Math.hypot(x - (ax + dx * t), z - (az + dz * t)));
   }
   return best;
+}
+
+/** Distance from the outer canal's centre line (Infinity outside its arc). */
+export function distanceToOuterCanal(x: number, z: number, p: CityPlan = plan): number {
+  const c = p.water.canal;
+  const th = Math.atan2(z / p.wall.radiusZ, x / p.wall.radiusX);
+  const deg = (th * 180) / Math.PI;
+  if (deg < c.fromDeg || deg > c.toDeg) return Infinity;
+  const f = wallFactor(th, p);
+  const ring = Math.hypot((p.wall.radiusX * f + c.offset) * Math.cos(th), (p.wall.radiusZ * f + c.offset) * Math.sin(th));
+  return Math.abs(Math.hypot(x, z) - ring);
 }
