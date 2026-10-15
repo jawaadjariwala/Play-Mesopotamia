@@ -97,11 +97,11 @@ export class Player {
     this.velocity.lerp(wish, 1 - Math.exp(-ACCEL * dt));
     const move = this.velocity.clone().multiplyScalar(dt);
 
-    // On the ground, only press down lightly and let snap-to-ground hold us there; feeding
-    // full gravity into the contact pushes the capsule into the floor and the controller
-    // then refuses to move sideways.
+    // On the ground, don't push down at all and let snap-to-ground hold us there. Pushing
+    // into the floor (even 1 cm a frame) made the controller refuse to move for a frame
+    // every half second or so, which showed up as camera judder.
     this.velocityY = this.grounded ? 0 : Math.max(this.velocityY - 9.81 * dt, -20);
-    const desired = { x: move.x, y: this.grounded ? -0.01 : this.velocityY * dt, z: move.z };
+    const desired = { x: move.x, y: this.grounded ? 0 : this.velocityY * dt, z: move.z };
     this.controller.computeColliderMovement(this.collider, desired);
     const m = this.controller.computedMovement();
     this.grounded = this.controller.computedGrounded();
@@ -112,13 +112,14 @@ export class Player {
     this.position.set(next.x, next.y, next.z);
 
     // Footsteps: one soft dip per step and a slight sway per stride, both fading in with speed.
-    const moved = Math.hypot(m.x, m.z);
-    const speedNow = dt > 0 ? moved / dt : 0;
-    const running = speedNow > (WALK + RUN) / 2;
-    this.stepPhase += moved / (running ? STEP_RUN : STEP_WALK);
-    const amount = Math.min(1, speedNow / WALK);
-    const dip = (running ? 0.045 : 0.022) * amount * (1 - Math.cos(this.stepPhase * Math.PI * 2)) * 0.5;
-    const sway = (running ? 0.02 : 0.012) * amount * Math.sin(this.stepPhase * Math.PI);
+    // Driven by the smoothed walking speed, not by this frame's actual movement: a frame
+    // where the physics nudges us differently must not jolt the camera.
+    const speed01 = this.velocity.length();
+    const run01 = THREE.MathUtils.clamp((speed01 - WALK) / (RUN - WALK), 0, 1);
+    this.stepPhase += (speed01 * dt) / THREE.MathUtils.lerp(STEP_WALK, STEP_RUN, run01);
+    const amount = Math.min(1, speed01 / WALK);
+    const dip = THREE.MathUtils.lerp(0.016, 0.03, run01) * amount * (1 - Math.cos(this.stepPhase * Math.PI * 2)) * 0.5;
+    const sway = THREE.MathUtils.lerp(0.008, 0.012, run01) * amount * Math.sin(this.stepPhase * Math.PI);
 
     // Smooth the eye height so steps and thresholds don't jolt the view.
     const targetEye = next.y - (CAPSULE_HALF + CAPSULE_RADIUS) + EYE_HEIGHT;

@@ -9,13 +9,17 @@ interface Level {
  * Keeps walking smooth by trading image quality for frame rate, one step at a time:
  * a little resolution first, then ambient occlusion (the most expensive pass), then
  * more resolution. Steps down quickly when under 52 fps, steps back up only after
- * several seconds of headroom so it doesn't flicker between levels.
+ * several seconds of headroom, and backs off further each time a step up fails, so it
+ * settles instead of hopping between levels (each switch is a visible hitch).
  */
 export class QualityGovernor {
   private frames = 0;
   private windowStart = performance.now();
   private goodSeconds = 0;
   private cooldown = 0;
+  /** Seconds since the last step up, and how long to wait before trying again (doubles on each failed try). */
+  private sinceUp = Infinity;
+  private upWait = 4;
   readonly levels: Level[];
   level = 0;
 
@@ -57,16 +61,20 @@ export class QualityGovernor {
       this.cooldown--;
       return;
     }
+    this.sinceUp++;
     if (fps < 52 && this.level < this.levels.length - 1) {
+      // Dropping right after a step up means that level is too much: wait longer next time.
+      if (this.sinceUp <= 5) this.upWait = Math.min(120, this.upWait * 2);
       this.level++;
       this.goodSeconds = 0;
       this.apply();
     } else if (fps > 58.5) {
       this.goodSeconds++;
       // Earn your way back up: longer when the next step turns AO back on.
-      const needed = this.levels[this.level - 1]?.ao && !this.current.ao ? 8 : 4;
+      const needed = this.levels[this.level - 1]?.ao && !this.current.ao ? this.upWait * 2 : this.upWait;
       if (this.level > 0 && this.goodSeconds >= needed) {
         this.level--;
+        this.sinceUp = 0;
         this.goodSeconds = 0;
         this.apply();
       }

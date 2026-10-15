@@ -125,6 +125,8 @@ async function main() {
   Object.assign(window as unknown as Record<string, unknown>, {
     __city: city,
     __player: player,
+    __camera: camera,
+    __quality: quality,
     __stairFoot: { x: stairFoot.x, z: stairFoot.z, yaw: zy },
   });
 
